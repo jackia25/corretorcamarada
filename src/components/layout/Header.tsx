@@ -58,8 +58,8 @@ export function Header() {
               <Handshake className="h-5 w-5 text-primary-foreground" />
             </div>
             <span className="font-display font-bold text-xl hidden sm:block">
-              <span className="gradient-text">Parceria</span>
-              <span className="text-foreground">Imob</span>
+              <span className="gradient-text">Corretor</span>
+              <span className="text-foreground">Camarada</span>
             </span>
           </Link>
 
