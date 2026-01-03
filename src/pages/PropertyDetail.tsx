@@ -53,10 +53,13 @@ export default function PropertyDetail() {
   async function fetchProperty() {
     if (!id || !profile) return;
 
+    // Fetch only public property fields - NOT sensitive data like owner contact info
     const { data: propertyData, error } = await supabase
       .from('properties')
       .select(`
-        *,
+        id, title, description, property_type, neighborhood, city, state,
+        price_range_min, price_range_max, bedrooms, bathrooms, area_m2,
+        features, public_photos, is_active, owner_id, created_at, updated_at,
         owner:profiles!properties_owner_id_fkey(id, full_name, creci, avatar_url, city, state)
       `)
       .eq('id', id)
@@ -71,8 +74,6 @@ export default function PropertyDetail() {
       navigate('/properties');
       return;
     }
-
-    setProperty(propertyData as unknown as Property);
 
     // Check existing request
     const { data: requestData } = await supabase
@@ -97,6 +98,43 @@ export default function PropertyDetail() {
 
     if (agreementData) {
       setActiveAgreement(agreementData as CooperationAgreement);
+    }
+
+    const isUserOwner = propertyData.owner_id === profile.id;
+    const hasActiveAgreement = agreementData !== null;
+
+    // Only fetch sensitive data if user has access (owner or active agreement)
+    if (isUserOwner || hasActiveAgreement) {
+      const { data: sensitiveData } = await supabase
+        .from('properties')
+        .select('owner_name, owner_phone, owner_email, full_address, address_number, address_complement, zip_code, sensitive_photos, documents, internal_notes')
+        .eq('id', id)
+        .single();
+
+      if (sensitiveData) {
+        // Merge sensitive data with public data
+        setProperty({
+          ...propertyData,
+          ...sensitiveData,
+        } as unknown as Property);
+      } else {
+        setProperty(propertyData as unknown as Property);
+      }
+    } else {
+      // No access to sensitive data - set null values for sensitive fields
+      setProperty({
+        ...propertyData,
+        owner_name: null,
+        owner_phone: null,
+        owner_email: null,
+        full_address: null,
+        address_number: null,
+        address_complement: null,
+        zip_code: null,
+        sensitive_photos: null,
+        documents: null,
+        internal_notes: null,
+      } as unknown as Property);
     }
 
     setLoading(false);
