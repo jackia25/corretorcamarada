@@ -11,8 +11,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { Building2, Lock, Eye, Loader2, ArrowLeft } from 'lucide-react';
+import { Lock, Eye, Loader2, ArrowLeft } from 'lucide-react';
 import { PROPERTY_TYPE_LABELS, BRAZILIAN_STATES, PropertyType } from '@/lib/types';
+import { propertySchema } from '@/lib/validations';
 
 export default function NewProperty() {
   const { profile } = useAuth();
@@ -45,52 +46,58 @@ export default function NewProperty() {
     internal_notes: '',
   });
 
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!profile) return;
 
-    if (!formData.title || !formData.property_type || !formData.neighborhood || !formData.city || !formData.state) {
+    // Validate with Zod schema
+    const result = propertySchema.safeParse(formData);
+    
+    if (!result.success) {
+      const fieldErrors: Record<string, string> = {};
+      result.error.errors.forEach((err) => {
+        if (err.path[0]) {
+          fieldErrors[err.path[0] as string] = err.message;
+        }
+      });
+      setErrors(fieldErrors);
       toast({
         variant: 'destructive',
-        title: 'Campos obrigatórios',
-        description: 'Preencha todos os campos obrigatórios.',
+        title: 'Erro de validação',
+        description: result.error.errors[0]?.message || 'Verifique os campos do formulário.',
       });
       return;
     }
 
-    if (!formData.full_address || !formData.owner_name || !formData.owner_phone) {
-      toast({
-        variant: 'destructive',
-        title: 'Dados sensíveis obrigatórios',
-        description: 'Endereço completo, nome e telefone do proprietário são obrigatórios.',
-      });
-      return;
-    }
-
+    setErrors({});
     setLoading(true);
 
+    const validData = result.data;
+    
     const { error } = await supabase.from('properties').insert({
       owner_id: profile.id,
-      title: formData.title,
-      description: formData.description || null,
-      property_type: formData.property_type,
-      neighborhood: formData.neighborhood,
-      city: formData.city,
-      state: formData.state,
-      price_range_min: formData.price_range_min ? parseFloat(formData.price_range_min) : null,
-      price_range_max: formData.price_range_max ? parseFloat(formData.price_range_max) : null,
-      bedrooms: formData.bedrooms ? parseInt(formData.bedrooms) : null,
-      bathrooms: formData.bathrooms ? parseInt(formData.bathrooms) : null,
-      area_m2: formData.area_m2 ? parseFloat(formData.area_m2) : null,
-      features: formData.features ? formData.features.split(',').map(f => f.trim()) : null,
-      full_address: formData.full_address,
-      address_number: formData.address_number || null,
-      address_complement: formData.address_complement || null,
-      zip_code: formData.zip_code || null,
-      owner_name: formData.owner_name,
-      owner_phone: formData.owner_phone,
-      owner_email: formData.owner_email || null,
-      internal_notes: formData.internal_notes || null,
+      title: validData.title,
+      description: validData.description || null,
+      property_type: validData.property_type,
+      neighborhood: validData.neighborhood,
+      city: validData.city,
+      state: validData.state,
+      price_range_min: validData.price_range_min ? parseFloat(validData.price_range_min) : null,
+      price_range_max: validData.price_range_max ? parseFloat(validData.price_range_max) : null,
+      bedrooms: validData.bedrooms ? parseInt(validData.bedrooms) : null,
+      bathrooms: validData.bathrooms ? parseInt(validData.bathrooms) : null,
+      area_m2: validData.area_m2 ? parseFloat(validData.area_m2) : null,
+      features: validData.features ? validData.features.split(',').map(f => f.trim()).filter(Boolean) : null,
+      full_address: validData.full_address,
+      address_number: validData.address_number || null,
+      address_complement: validData.address_complement || null,
+      zip_code: validData.zip_code || null,
+      owner_name: validData.owner_name,
+      owner_phone: validData.owner_phone,
+      owner_email: validData.owner_email || null,
+      internal_notes: validData.internal_notes || null,
     });
 
     setLoading(false);
@@ -145,7 +152,10 @@ export default function NewProperty() {
                   placeholder="Ex: Apartamento 3 quartos com vista para o mar"
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  className={errors.title ? 'border-destructive' : ''}
+                  maxLength={200}
                 />
+                {errors.title && <p className="text-sm text-destructive">{errors.title}</p>}
               </div>
 
               <div className="space-y-2">
@@ -156,7 +166,10 @@ export default function NewProperty() {
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   rows={4}
+                  maxLength={2000}
+                  className={errors.description ? 'border-destructive' : ''}
                 />
+                {errors.description && <p className="text-sm text-destructive">{errors.description}</p>}
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">

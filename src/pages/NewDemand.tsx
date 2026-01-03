@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Layout } from '@/components/layout/Layout';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,6 +12,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { FileSearch, Loader2, ArrowLeft } from 'lucide-react';
 import { PROPERTY_TYPE_LABELS, BRAZILIAN_STATES, PropertyType } from '@/lib/types';
+import { demandSchema } from '@/lib/validations';
 
 export default function NewDemand() {
   const { profile } = useAuth();
@@ -34,35 +35,50 @@ export default function NewDemand() {
     area_max: '',
   });
 
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!profile) return;
 
-    if (!formData.title) {
+    // Validate with Zod schema
+    const result = demandSchema.safeParse(formData);
+    
+    if (!result.success) {
+      const fieldErrors: Record<string, string> = {};
+      result.error.errors.forEach((err) => {
+        if (err.path[0]) {
+          fieldErrors[err.path[0] as string] = err.message;
+        }
+      });
+      setErrors(fieldErrors);
       toast({
         variant: 'destructive',
-        title: 'Campos obrigatórios',
-        description: 'Informe pelo menos o título da demanda.',
+        title: 'Erro de validação',
+        description: result.error.errors[0]?.message || 'Verifique os campos do formulário.',
       });
       return;
     }
 
+    setErrors({});
     setLoading(true);
+
+    const validData = result.data;
 
     const { error } = await supabase.from('purchase_demands').insert({
       broker_id: profile.id,
-      title: formData.title,
-      description: formData.description || null,
-      property_types: formData.property_types.length > 0 ? formData.property_types : null,
-      neighborhoods: formData.neighborhoods ? formData.neighborhoods.split(',').map(n => n.trim()) : null,
-      cities: formData.cities ? formData.cities.split(',').map(c => c.trim()) : null,
-      states: formData.states.length > 0 ? formData.states : null,
-      price_min: formData.price_min ? parseFloat(formData.price_min) : null,
-      price_max: formData.price_max ? parseFloat(formData.price_max) : null,
-      bedrooms_min: formData.bedrooms_min ? parseInt(formData.bedrooms_min) : null,
-      bedrooms_max: formData.bedrooms_max ? parseInt(formData.bedrooms_max) : null,
-      area_min: formData.area_min ? parseFloat(formData.area_min) : null,
-      area_max: formData.area_max ? parseFloat(formData.area_max) : null,
+      title: validData.title,
+      description: validData.description || null,
+      property_types: validData.property_types && validData.property_types.length > 0 ? validData.property_types : null,
+      neighborhoods: validData.neighborhoods ? validData.neighborhoods.split(',').map(n => n.trim()).filter(Boolean) : null,
+      cities: validData.cities ? validData.cities.split(',').map(c => c.trim()).filter(Boolean) : null,
+      states: validData.states && validData.states.length > 0 ? validData.states : null,
+      price_min: validData.price_min ? parseFloat(validData.price_min) : null,
+      price_max: validData.price_max ? parseFloat(validData.price_max) : null,
+      bedrooms_min: validData.bedrooms_min ? parseInt(validData.bedrooms_min) : null,
+      bedrooms_max: validData.bedrooms_max ? parseInt(validData.bedrooms_max) : null,
+      area_min: validData.area_min ? parseFloat(validData.area_min) : null,
+      area_max: validData.area_max ? parseFloat(validData.area_max) : null,
     });
 
     setLoading(false);
@@ -124,7 +140,10 @@ export default function NewDemand() {
                   placeholder="Ex: Cliente busca apartamento 3 quartos na Zona Sul"
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  className={errors.title ? 'border-destructive' : ''}
+                  maxLength={200}
                 />
+                {errors.title && <p className="text-sm text-destructive">{errors.title}</p>}
               </div>
 
               <div className="space-y-2">
@@ -135,7 +154,10 @@ export default function NewDemand() {
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   rows={3}
+                  maxLength={2000}
+                  className={errors.description ? 'border-destructive' : ''}
                 />
+                {errors.description && <p className="text-sm text-destructive">{errors.description}</p>}
               </div>
 
               <div className="space-y-2">
