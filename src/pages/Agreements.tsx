@@ -16,10 +16,16 @@ import {
   Clock,
   Loader2,
   Eye,
-  Percent
+  Percent,
+  Download,
+  FileSignature,
+  Scale
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { CooperationAgreement, AGREEMENT_STATUS_LABELS, AgreementStatus } from '@/lib/types';
+import { AgreementSignatureDialog } from '@/components/agreement/AgreementSignatureDialog';
+import { generateAgreementPdf, downloadPdf } from '@/lib/generateAgreementPdf';
+import { AgreementData } from '@/lib/agreementTemplate';
 
 interface AgreementWithDetails extends Omit<CooperationAgreement, 'property' | 'captador' | 'buyer_broker'> {
   property: {
@@ -39,6 +45,8 @@ interface AgreementWithDetails extends Omit<CooperationAgreement, 'property' | '
     full_name: string;
     creci: string;
   };
+  captador_signature_ip: string | null;
+  buyer_broker_signature_ip: string | null;
 }
 
 export default function Agreements() {
@@ -47,6 +55,9 @@ export default function Agreements() {
   const [agreements, setAgreements] = useState<AgreementWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
+  const [signatureDialogOpen, setSignatureDialogOpen] = useState(false);
+  const [selectedAgreement, setSelectedAgreement] = useState<AgreementWithDetails | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (profile) {
@@ -72,51 +83,106 @@ export default function Agreements() {
     setLoading(false);
   }
 
-  const handleAcceptAgreement = async (agreement: AgreementWithDetails) => {
-    if (!profile) return;
+  const openSignatureDialog = (agreement: AgreementWithDetails) => {
+    setSelectedAgreement(agreement);
+    setSignatureDialogOpen(true);
+  };
 
-    setAcceptingId(agreement.id);
+  const handleSignAgreement = async (ip: string) => {
+    if (!selectedAgreement || !profile) return;
 
-    const isCaptador = agreement.captador_id === profile.id;
+    setAcceptingId(selectedAgreement.id);
+
+    const isCaptador = selectedAgreement.captador_id === profile.id;
     const updateField = isCaptador ? 'captador_accepted_at' : 'buyer_broker_accepted_at';
+    const ipField = isCaptador ? 'captador_signature_ip' : 'buyer_broker_signature_ip';
     
     // Check if both will have accepted
-    const otherAccepted = isCaptador ? agreement.buyer_broker_accepted_at : agreement.captador_accepted_at;
+    const otherAccepted = isCaptador ? selectedAgreement.buyer_broker_accepted_at : selectedAgreement.captador_accepted_at;
     const newStatus = otherAccepted ? 'active' : 'pending';
 
     const { error } = await supabase
       .from('cooperation_agreements')
       .update({
         [updateField]: new Date().toISOString(),
+        [ipField]: ip,
         status: newStatus as AgreementStatus,
       })
-      .eq('id', agreement.id);
+      .eq('id', selectedAgreement.id);
 
     setAcceptingId(null);
+    setSignatureDialogOpen(false);
+    setSelectedAgreement(null);
 
     if (error) {
       toast({ variant: 'destructive', title: 'Erro', description: error.message });
     } else {
       toast({ 
-        title: newStatus === 'active' ? 'Acordo Ativado!' : 'Aceite registrado',
+        title: newStatus === 'active' ? 'Acordo Ativado!' : 'Assinatura registrada',
         description: newStatus === 'active' 
           ? 'Os dados do imóvel agora estão liberados.'
-          : 'Aguardando a outra parte aceitar.',
+          : 'Aguardando a outra parte assinar.',
       });
 
       // Log access if agreement is now active
       if (newStatus === 'active') {
         await supabase.from('access_logs').insert({
           user_id: profile.id,
-          property_id: agreement.property_id,
-          agreement_id: agreement.id,
+          property_id: selectedAgreement.property_id,
+          agreement_id: selectedAgreement.id,
           action: 'agreement_activated',
-          details: { activated_by: profile.id },
+          details: { activated_by: profile.id, signature_ip: ip },
         });
       }
 
       fetchAgreements();
     }
+  };
+
+  const handleDownloadPdf = async (agreement: AgreementWithDetails) => {
+    setDownloadingId(agreement.id);
+    
+    try {
+      const agreementData: AgreementData = {
+        id: agreement.id,
+        createdAt: agreement.created_at,
+        expiresAt: agreement.expires_at,
+        property: {
+          title: agreement.property.title,
+          neighborhood: agreement.property.neighborhood,
+          city: agreement.property.city,
+          state: agreement.property.state,
+        },
+        captador: {
+          fullName: agreement.captador.full_name,
+          creci: agreement.captador.creci,
+          acceptedAt: agreement.captador_accepted_at,
+          signatureIp: agreement.captador_signature_ip,
+        },
+        buyerBroker: {
+          fullName: agreement.buyer_broker.full_name,
+          creci: agreement.buyer_broker.creci,
+          acceptedAt: agreement.buyer_broker_accepted_at,
+          signatureIp: agreement.buyer_broker_signature_ip,
+        },
+        commissions: {
+          captador: agreement.captador_commission_percent,
+          buyerBroker: agreement.buyer_broker_commission_percent,
+        },
+        terms: agreement.terms,
+        customTerms: null,
+      };
+
+      const pdfBlob = await generateAgreementPdf(agreementData);
+      const filename = `acordo-cooperacao-${agreement.id.slice(0, 8)}.pdf`;
+      downloadPdf(pdfBlob, filename);
+      
+      toast({ title: 'PDF gerado com sucesso!' });
+    } catch (error) {
+      toast({ variant: 'destructive', title: 'Erro ao gerar PDF' });
+    }
+    
+    setDownloadingId(null);
   };
 
   const getStatusBadge = (status: AgreementStatus) => {
@@ -194,6 +260,36 @@ export default function Agreements() {
                   </p>
                 )}
 
+                {/* Signature Status */}
+                <div className="mt-3 p-3 bg-muted/50 rounded-lg">
+                  <p className="text-xs font-medium mb-2 flex items-center gap-1">
+                    <FileSignature className="h-3 w-3" />
+                    Status das Assinaturas:
+                  </p>
+                  <div className="grid sm:grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <span className="text-muted-foreground">Captador:</span>
+                      {agreement.captador_accepted_at ? (
+                        <span className="text-success ml-1">
+                          ✓ Assinado em {formatDate(agreement.captador_accepted_at)}
+                        </span>
+                      ) : (
+                        <span className="text-warning ml-1">Pendente</span>
+                      )}
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Corretor:</span>
+                      {agreement.buyer_broker_accepted_at ? (
+                        <span className="text-success ml-1">
+                          ✓ Assinado em {formatDate(agreement.buyer_broker_accepted_at)}
+                        </span>
+                      ) : (
+                        <span className="text-warning ml-1">Pendente</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
                 <p className="text-xs text-muted-foreground mt-3">
                   Criado em {formatDate(agreement.created_at)}
                   {agreement.expires_at && ` • Expira em ${formatDate(agreement.expires_at)}`}
@@ -204,28 +300,45 @@ export default function Agreements() {
                 {agreement.status === 'pending' && !iAccepted && (
                   <Button
                     className="gap-2 gradient-bg"
-                    onClick={() => handleAcceptAgreement(agreement)}
+                    onClick={() => openSignatureDialog(agreement)}
                     disabled={acceptingId === agreement.id}
                   >
                     {acceptingId === agreement.id ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
-                      <CheckCircle2 className="h-4 w-4" />
+                      <Scale className="h-4 w-4" />
                     )}
-                    Aceitar Acordo
+                    Assinar Acordo
                   </Button>
                 )}
 
                 {agreement.status === 'pending' && iAccepted && !otherAccepted && (
                   <div className="text-center p-3 bg-warning/10 rounded-lg">
                     <Clock className="h-5 w-5 text-warning mx-auto mb-1" />
-                    <p className="text-sm text-warning">Aguardando outra parte</p>
+                    <p className="text-sm text-warning">Aguardando assinatura</p>
                   </div>
+                )}
+
+                {/* Download PDF button - always available if at least one signed */}
+                {(agreement.captador_accepted_at || agreement.buyer_broker_accepted_at) && (
+                  <Button
+                    variant="outline"
+                    className="gap-2"
+                    onClick={() => handleDownloadPdf(agreement)}
+                    disabled={downloadingId === agreement.id}
+                  >
+                    {downloadingId === agreement.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Download className="h-4 w-4" />
+                    )}
+                    Baixar PDF
+                  </Button>
                 )}
 
                 {agreement.status === 'active' && (
                   <Link to={`/properties/${agreement.property_id}`}>
-                    <Button variant="outline" className="gap-2">
+                    <Button variant="outline" className="gap-2 w-full">
                       <Eye className="h-4 w-4" />
                       Ver Imóvel
                     </Button>
@@ -308,6 +421,21 @@ export default function Agreements() {
               <AgreementCard key={agreement.id} agreement={agreement} />
             ))}
           </div>
+        )}
+
+        {/* Signature Dialog */}
+        {selectedAgreement && (
+          <AgreementSignatureDialog
+            open={signatureDialogOpen}
+            onOpenChange={(open) => {
+              setSignatureDialogOpen(open);
+              if (!open) setSelectedAgreement(null);
+            }}
+            agreement={selectedAgreement}
+            onSign={handleSignAgreement}
+            role={selectedAgreement.captador_id === profile?.id ? 'captador' : 'buyer_broker'}
+            submitting={acceptingId === selectedAgreement.id}
+          />
         )}
       </div>
     </Layout>

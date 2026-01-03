@@ -11,6 +11,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { 
   Inbox, 
@@ -21,10 +24,17 @@ import {
   Building2,
   User,
   Handshake,
-  Loader2
+  Loader2,
+  Scale,
+  Shield,
+  AlertTriangle,
+  FileSignature,
+  Percent,
+  Calendar
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { AccessRequest, REQUEST_STATUS_LABELS, RequestStatus } from '@/lib/types';
+import { getAgreementClauses } from '@/lib/agreementTemplate';
 
 interface RequestWithDetails extends Omit<AccessRequest, 'property' | 'requester'> {
   property: {
@@ -54,6 +64,13 @@ export default function Requests() {
   const [commissionPercent, setCommissionPercent] = useState('50');
   const [agreementTerms, setAgreementTerms] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  
+  // Signature states
+  const [acceptedClauses, setAcceptedClauses] = useState<Record<number, boolean>>({});
+  const [acceptedFinal, setAcceptedFinal] = useState(false);
+  const [userIp, setUserIp] = useState<string>('');
+  const [loadingIp, setLoadingIp] = useState(false);
+  const [step, setStep] = useState<'terms' | 'signature'>('terms');
 
   useEffect(() => {
     if (profile) {
@@ -95,8 +112,29 @@ export default function Requests() {
     setLoading(false);
   }
 
+  // Fetch IP when entering signature step
+  useEffect(() => {
+    if (step === 'signature' && actionDialog === 'accept') {
+      setLoadingIp(true);
+      fetch('https://api.ipify.org?format=json')
+        .then(res => res.json())
+        .then(data => {
+          setUserIp(data.ip);
+          setLoadingIp(false);
+        })
+        .catch(() => {
+          setUserIp('IP não identificado');
+          setLoadingIp(false);
+        });
+    }
+  }, [step, actionDialog]);
+
+  const clauses = getAgreementClauses();
+  const allClausesAccepted = clauses.every((_, index) => acceptedClauses[index]);
+  const canSign = allClausesAccepted && acceptedFinal && userIp;
+
   const handleAccept = async () => {
-    if (!selectedRequest || !profile) return;
+    if (!selectedRequest || !profile || !userIp) return;
 
     setSubmitting(true);
 
@@ -116,7 +154,7 @@ export default function Requests() {
       return;
     }
 
-    // Create cooperation agreement
+    // Create cooperation agreement with signature
     const captadorPercent = parseFloat(commissionPercent);
     const { error: agreementError } = await supabase.from('cooperation_agreements').insert({
       access_request_id: selectedRequest.id,
@@ -127,21 +165,33 @@ export default function Requests() {
       buyer_broker_commission_percent: 100 - captadorPercent,
       terms: agreementTerms || null,
       captador_accepted_at: new Date().toISOString(),
+      captador_signature_ip: userIp,
     });
 
     setSubmitting(false);
+    resetDialogState();
+
+    if (agreementError) {
+      toast({ variant: 'destructive', title: 'Erro ao criar acordo', description: agreementError.message });
+    } else {
+      toast({ 
+        title: 'Acordo assinado com sucesso!', 
+        description: 'Aguardando assinatura do corretor do comprador.' 
+      });
+      fetchRequests();
+    }
+  };
+
+  const resetDialogState = () => {
     setActionDialog(null);
     setSelectedRequest(null);
     setResponseMessage('');
     setCommissionPercent('50');
     setAgreementTerms('');
-
-    if (agreementError) {
-      toast({ variant: 'destructive', title: 'Erro ao criar acordo', description: agreementError.message });
-    } else {
-      toast({ title: 'Solicitação aceita!', description: 'Um acordo de cooperação foi criado.' });
-      fetchRequests();
-    }
+    setAcceptedClauses({});
+    setAcceptedFinal(false);
+    setStep('terms');
+    setUserIp('');
   };
 
   const handleReject = async () => {
@@ -344,60 +394,209 @@ export default function Requests() {
           </TabsContent>
         </Tabs>
 
-        {/* Accept Dialog */}
-        <Dialog open={actionDialog === 'accept'} onOpenChange={() => setActionDialog(null)}>
-          <DialogContent className="max-w-lg">
+        {/* Accept Dialog - Step 1: Terms */}
+        <Dialog open={actionDialog === 'accept'} onOpenChange={() => resetDialogState()}>
+          <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <Handshake className="h-5 w-5 text-primary" />
-                Aceitar e Criar Acordo
+                {step === 'terms' ? (
+                  <>
+                    <Handshake className="h-5 w-5 text-primary" />
+                    Definir Termos do Acordo
+                  </>
+                ) : (
+                  <>
+                    <Scale className="h-5 w-5 text-primary" />
+                    Assinar Termo de Cooperação
+                  </>
+                )}
               </DialogTitle>
               <DialogDescription>
-                Ao aceitar, você criará um acordo de cooperação. Defina os termos abaixo.
+                {step === 'terms' 
+                  ? 'Defina os termos da cooperação. Na próxima etapa você assinará o acordo.'
+                  : 'Leia e aceite cada cláusula para assinar digitalmente o acordo.'}
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label>Sua Comissão (%)</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={commissionPercent}
-                  onChange={(e) => setCommissionPercent(e.target.value)}
-                />
-                <p className="text-sm text-muted-foreground">
-                  Corretor do comprador receberá: {100 - parseFloat(commissionPercent || '0')}%
-                </p>
-              </div>
-              <div className="space-y-2">
-                <Label>Termos do Acordo (opcional)</Label>
-                <Textarea
-                  placeholder="Condições especiais, prazos, etc..."
-                  value={agreementTerms}
-                  onChange={(e) => setAgreementTerms(e.target.value)}
-                  rows={3}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Mensagem de Resposta (opcional)</Label>
-                <Textarea
-                  placeholder="Mensagem para o corretor..."
-                  value={responseMessage}
-                  onChange={(e) => setResponseMessage(e.target.value)}
-                  rows={2}
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setActionDialog(null)}>
-                Cancelar
-              </Button>
-              <Button className="gradient-bg gap-2" onClick={handleAccept} disabled={submitting}>
-                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                Aceitar e Criar Acordo
-              </Button>
-            </DialogFooter>
+
+            {step === 'terms' ? (
+              <>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label>Sua Comissão (%)</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={commissionPercent}
+                      onChange={(e) => setCommissionPercent(e.target.value)}
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      Corretor do comprador receberá: {100 - parseFloat(commissionPercent || '0')}%
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Termos Adicionais (opcional)</Label>
+                    <Textarea
+                      placeholder="Condições especiais, prazos, observações..."
+                      value={agreementTerms}
+                      onChange={(e) => setAgreementTerms(e.target.value)}
+                      rows={3}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Mensagem de Resposta (opcional)</Label>
+                    <Textarea
+                      placeholder="Mensagem para o corretor..."
+                      value={responseMessage}
+                      onChange={(e) => setResponseMessage(e.target.value)}
+                      rows={2}
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => resetDialogState()}>
+                    Cancelar
+                  </Button>
+                  <Button className="gradient-bg gap-2" onClick={() => setStep('signature')}>
+                    Continuar para Assinatura
+                    <Scale className="h-4 w-4" />
+                  </Button>
+                </DialogFooter>
+              </>
+            ) : (
+              <>
+                <ScrollArea className="flex-1 pr-4 max-h-[60vh]">
+                  <div className="space-y-4">
+                    {/* Agreement Summary */}
+                    <div className="bg-muted/50 p-4 rounded-lg space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Building2 className="h-4 w-4 text-muted-foreground" />
+                        <span className="font-medium">{selectedRequest?.property.title}</span>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {selectedRequest?.property.neighborhood}, {selectedRequest?.property.city} - {selectedRequest?.property.state}
+                      </p>
+                      <Separator className="my-2" />
+                      <div className="flex flex-wrap gap-4 text-sm">
+                        <div className="flex items-center gap-2">
+                          <Percent className="h-4 w-4" />
+                          <span>Captador: <strong>{commissionPercent}%</strong></span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Percent className="h-4 w-4" />
+                          <span>Corretor: <strong>{100 - parseFloat(commissionPercent || '0')}%</strong></span>
+                        </div>
+                      </div>
+                      {agreementTerms && (
+                        <p className="text-sm mt-2 bg-background p-2 rounded">
+                          <strong>Termos:</strong> {agreementTerms}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Clauses */}
+                    <h4 className="font-semibold flex items-center gap-2">
+                      <Shield className="h-4 w-4 text-primary" />
+                      Cláusulas do Acordo
+                    </h4>
+                    
+                    {clauses.map((clause, index) => (
+                      <motion.div
+                        key={index}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.03 }}
+                        className={`p-3 rounded-lg border transition-colors ${
+                          acceptedClauses[index] ? 'border-success bg-success/5' : 'border-border'
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <Checkbox
+                            id={`clause-${index}`}
+                            checked={acceptedClauses[index] || false}
+                            onCheckedChange={(checked) => 
+                              setAcceptedClauses(prev => ({ ...prev, [index]: !!checked }))
+                            }
+                            className="mt-0.5"
+                          />
+                          <div className="flex-1">
+                            <Label htmlFor={`clause-${index}`} className="font-medium cursor-pointer text-sm">
+                              {clause.title}
+                            </Label>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {clause.content}
+                            </p>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+
+                    {/* Warning */}
+                    <div className="bg-warning/10 border border-warning/30 p-3 rounded-lg">
+                      <div className="flex items-start gap-2">
+                        <AlertTriangle className="h-4 w-4 text-warning flex-shrink-0 mt-0.5" />
+                        <p className="text-xs text-muted-foreground">
+                          <span className="font-medium text-warning">Importante:</span> Este acordo tem validade jurídica e poderá ser usado como prova em processos judiciais.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Final Acceptance */}
+                    <div className={`p-3 rounded-lg border-2 transition-colors ${
+                      acceptedFinal ? 'border-primary bg-primary/5' : 'border-border'
+                    }`}>
+                      <div className="flex items-start gap-3">
+                        <Checkbox
+                          id="final-acceptance"
+                          checked={acceptedFinal}
+                          onCheckedChange={(checked) => setAcceptedFinal(!!checked)}
+                          disabled={!allClausesAccepted}
+                          className="mt-0.5"
+                        />
+                        <Label htmlFor="final-acceptance" className="cursor-pointer text-sm">
+                          <span className="font-medium">Declaro que li, compreendi e concordo com todas as cláusulas</span>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Confirmo minha identidade como <strong>{profile?.full_name}</strong> (CRECI: {profile?.creci})
+                          </p>
+                        </Label>
+                      </div>
+                    </div>
+
+                    {/* Signature Info */}
+                    <div className="bg-muted/50 p-3 rounded-lg text-xs">
+                      <p className="font-medium mb-1">Dados da Assinatura Digital:</p>
+                      <div className="grid sm:grid-cols-2 gap-1 text-muted-foreground">
+                        <p>Data/Hora: <span className="text-foreground">{new Date().toLocaleString('pt-BR')}</span></p>
+                        <p>
+                          IP: {loadingIp ? (
+                            <Loader2 className="inline h-3 w-3 animate-spin" />
+                          ) : (
+                            <span className="text-foreground">{userIp || 'Carregando...'}</span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </ScrollArea>
+                <DialogFooter className="mt-4">
+                  <Button variant="outline" onClick={() => setStep('terms')}>
+                    Voltar
+                  </Button>
+                  <Button 
+                    className="gap-2 gradient-bg" 
+                    onClick={handleAccept} 
+                    disabled={!canSign || submitting}
+                  >
+                    {submitting ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <FileSignature className="h-4 w-4" />
+                    )}
+                    Assinar Acordo
+                  </Button>
+                </DialogFooter>
+              </>
+            )}
           </DialogContent>
         </Dialog>
 

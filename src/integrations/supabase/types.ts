@@ -129,9 +129,13 @@ export type Database = {
           buyer_broker_accepted_at: string | null
           buyer_broker_commission_percent: number
           buyer_broker_id: string
+          buyer_broker_signature_ip: string | null
           captador_accepted_at: string | null
           captador_commission_percent: number
           captador_id: string
+          captador_signature_ip: string | null
+          contract_template: string | null
+          contract_version: number | null
           created_at: string
           expires_at: string
           id: string
@@ -145,9 +149,13 @@ export type Database = {
           buyer_broker_accepted_at?: string | null
           buyer_broker_commission_percent: number
           buyer_broker_id: string
+          buyer_broker_signature_ip?: string | null
           captador_accepted_at?: string | null
           captador_commission_percent: number
           captador_id: string
+          captador_signature_ip?: string | null
+          contract_template?: string | null
+          contract_version?: number | null
           created_at?: string
           expires_at?: string
           id?: string
@@ -161,9 +169,13 @@ export type Database = {
           buyer_broker_accepted_at?: string | null
           buyer_broker_commission_percent?: number
           buyer_broker_id?: string
+          buyer_broker_signature_ip?: string | null
           captador_accepted_at?: string | null
           captador_commission_percent?: number
           captador_id?: string
+          captador_signature_ip?: string | null
+          contract_template?: string | null
+          contract_version?: number | null
           created_at?: string
           expires_at?: string
           id?: string
