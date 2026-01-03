@@ -1,0 +1,424 @@
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
+import { Layout } from '@/components/layout/Layout';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { useToast } from '@/hooks/use-toast';
+import { 
+  Building2, 
+  MapPin, 
+  BedDouble, 
+  Bath, 
+  Maximize2,
+  ArrowLeft,
+  Lock,
+  Send,
+  User,
+  Phone,
+  Mail,
+  CheckCircle2,
+  Clock,
+  Loader2
+} from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Property, AccessRequest, CooperationAgreement, PROPERTY_TYPE_LABELS, PropertyType } from '@/lib/types';
+
+export default function PropertyDetail() {
+  const { id } = useParams<{ id: string }>();
+  const { profile } = useAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+
+  const [property, setProperty] = useState<Property | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [existingRequest, setExistingRequest] = useState<AccessRequest | null>(null);
+  const [activeAgreement, setActiveAgreement] = useState<CooperationAgreement | null>(null);
+  const [requestMessage, setRequestMessage] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+
+  useEffect(() => {
+    if (id && profile) {
+      fetchProperty();
+    }
+  }, [id, profile]);
+
+  async function fetchProperty() {
+    if (!id || !profile) return;
+
+    const { data: propertyData, error } = await supabase
+      .from('properties')
+      .select(`
+        *,
+        owner:profiles!properties_owner_id_fkey(id, full_name, creci, avatar_url, city, state)
+      `)
+      .eq('id', id)
+      .single();
+
+    if (error || !propertyData) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro',
+        description: 'Imóvel não encontrado.',
+      });
+      navigate('/properties');
+      return;
+    }
+
+    setProperty(propertyData as unknown as Property);
+
+    // Check existing request
+    const { data: requestData } = await supabase
+      .from('access_requests')
+      .select('*')
+      .eq('property_id', id)
+      .eq('requester_id', profile.id)
+      .maybeSingle();
+
+    if (requestData) {
+      setExistingRequest(requestData as AccessRequest);
+    }
+
+    // Check active agreement
+    const { data: agreementData } = await supabase
+      .from('cooperation_agreements')
+      .select('*')
+      .eq('property_id', id)
+      .eq('buyer_broker_id', profile.id)
+      .eq('status', 'active')
+      .maybeSingle();
+
+    if (agreementData) {
+      setActiveAgreement(agreementData as CooperationAgreement);
+    }
+
+    setLoading(false);
+  }
+
+  const handleRequestAccess = async () => {
+    if (!property || !profile) return;
+
+    setSubmitting(true);
+
+    const { error } = await supabase.from('access_requests').insert({
+      property_id: property.id,
+      requester_id: profile.id,
+      message: requestMessage || null,
+    });
+
+    setSubmitting(false);
+    setDialogOpen(false);
+
+    if (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro',
+        description: error.message,
+      });
+    } else {
+      toast({
+        title: 'Solicitação enviada!',
+        description: 'O corretor captador receberá sua solicitação.',
+      });
+      fetchProperty();
+    }
+  };
+
+  const formatPrice = (min: number | null, max: number | null) => {
+    const formatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+    if (min && max) return `${formatter.format(min)} - ${formatter.format(max)}`;
+    if (min) return `A partir de ${formatter.format(min)}`;
+    if (max) return `Até ${formatter.format(max)}`;
+    return 'Consulte';
+  };
+
+  const hasAccess = activeAgreement !== null;
+  const isOwner = property?.owner_id === profile?.id;
+
+  if (loading) {
+    return (
+      <Layout>
+        <div className="container py-8 max-w-4xl">
+          <Skeleton className="h-8 w-32 mb-8" />
+          <Skeleton className="h-64 w-full rounded-xl mb-6" />
+          <Skeleton className="h-8 w-3/4 mb-4" />
+          <Skeleton className="h-4 w-1/2" />
+        </div>
+      </Layout>
+    );
+  }
+
+  if (!property) return null;
+
+  return (
+    <Layout>
+      <div className="container py-8 max-w-4xl">
+        <Button variant="ghost" className="mb-4 gap-2" onClick={() => navigate('/properties')}>
+          <ArrowLeft className="h-4 w-4" />
+          Voltar
+        </Button>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="space-y-6"
+        >
+          {/* Header Image */}
+          <div className="aspect-video bg-muted rounded-xl overflow-hidden relative">
+            {property.public_photos?.[0] ? (
+              <img 
+                src={property.public_photos[0]} 
+                alt={property.title}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center">
+                <Building2 className="h-24 w-24 text-muted-foreground/50" />
+              </div>
+            )}
+            <Badge className="absolute top-4 left-4 text-base px-4 py-2">
+              {PROPERTY_TYPE_LABELS[property.property_type as PropertyType]}
+            </Badge>
+          </div>
+
+          <div className="grid lg:grid-cols-3 gap-6">
+            {/* Main Content */}
+            <div className="lg:col-span-2 space-y-6">
+              <div>
+                <h1 className="text-3xl font-display font-bold mb-2">{property.title}</h1>
+                <p className="text-lg text-muted-foreground flex items-center gap-2">
+                  <MapPin className="h-5 w-5" />
+                  {property.neighborhood}, {property.city} - {property.state}
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-4">
+                {property.bedrooms && (
+                  <div className="flex items-center gap-2 bg-muted px-4 py-2 rounded-lg">
+                    <BedDouble className="h-5 w-5 text-primary" />
+                    <span>{property.bedrooms} quartos</span>
+                  </div>
+                )}
+                {property.bathrooms && (
+                  <div className="flex items-center gap-2 bg-muted px-4 py-2 rounded-lg">
+                    <Bath className="h-5 w-5 text-primary" />
+                    <span>{property.bathrooms} banheiros</span>
+                  </div>
+                )}
+                {property.area_m2 && (
+                  <div className="flex items-center gap-2 bg-muted px-4 py-2 rounded-lg">
+                    <Maximize2 className="h-5 w-5 text-primary" />
+                    <span>{property.area_m2} m²</span>
+                  </div>
+                )}
+              </div>
+
+              {property.description && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Descrição</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="whitespace-pre-wrap">{property.description}</p>
+                  </CardContent>
+                </Card>
+              )}
+
+              {property.features && property.features.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Características</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-wrap gap-2">
+                      {property.features.map((feature, i) => (
+                        <Badge key={i} variant="secondary">{feature}</Badge>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Sensitive Data - Only visible if has access */}
+              {hasAccess && (
+                <Card className="border-success">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-success">
+                      <CheckCircle2 className="h-5 w-5" />
+                      Dados Desbloqueados
+                    </CardTitle>
+                    <CardDescription>
+                      Você tem um acordo ativo com o corretor captador.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <Label className="text-muted-foreground">Endereço Completo</Label>
+                      <p className="font-medium">
+                        {property.full_address}, {property.address_number}
+                        {property.address_complement && ` - ${property.address_complement}`}
+                        {property.zip_code && ` - CEP: ${property.zip_code}`}
+                      </p>
+                    </div>
+
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div>
+                        <Label className="text-muted-foreground">Proprietário</Label>
+                        <p className="font-medium flex items-center gap-2">
+                          <User className="h-4 w-4" />
+                          {property.owner_name}
+                        </p>
+                      </div>
+                      <div>
+                        <Label className="text-muted-foreground">Telefone</Label>
+                        <p className="font-medium flex items-center gap-2">
+                          <Phone className="h-4 w-4" />
+                          {property.owner_phone}
+                        </p>
+                      </div>
+                      {property.owner_email && (
+                        <div>
+                          <Label className="text-muted-foreground">Email</Label>
+                          <p className="font-medium flex items-center gap-2">
+                            <Mail className="h-4 w-4" />
+                            {property.owner_email}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+
+            {/* Sidebar */}
+            <div className="space-y-6">
+              <Card>
+                <CardContent className="pt-6">
+                  <p className="text-3xl font-bold gradient-text mb-4">
+                    {formatPrice(property.price_range_min, property.price_range_max)}
+                  </p>
+
+                  {!isOwner && (
+                    <>
+                      {hasAccess ? (
+                        <div className="p-4 bg-success/10 rounded-lg text-center">
+                          <CheckCircle2 className="h-8 w-8 text-success mx-auto mb-2" />
+                          <p className="font-semibold text-success">Acesso Liberado</p>
+                          <p className="text-sm text-muted-foreground">
+                            Você pode ver os dados sensíveis
+                          </p>
+                        </div>
+                      ) : existingRequest ? (
+                        <div className="p-4 bg-warning/10 rounded-lg text-center">
+                          <Clock className="h-8 w-8 text-warning mx-auto mb-2" />
+                          <p className="font-semibold text-warning">
+                            {existingRequest.status === 'pending' ? 'Solicitação Pendente' : 
+                             existingRequest.status === 'rejected' ? 'Solicitação Recusada' : 'Expirada'}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {existingRequest.status === 'pending' 
+                              ? 'Aguardando resposta do captador'
+                              : existingRequest.status === 'accepted'
+                              ? 'Aguardando acordo de cooperação'
+                              : 'Sua solicitação foi recusada'}
+                          </p>
+                        </div>
+                      ) : (
+                        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                          <DialogTrigger asChild>
+                            <Button className="w-full gradient-bg gap-2" size="lg">
+                              <Lock className="h-4 w-4" />
+                              Solicitar Acesso
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle>Solicitar Acesso ao Imóvel</DialogTitle>
+                              <DialogDescription>
+                                Envie uma mensagem ao corretor captador explicando seu interesse.
+                                Os dados sensíveis só serão liberados após acordo de cooperação.
+                              </DialogDescription>
+                            </DialogHeader>
+                            <div className="space-y-4 py-4">
+                              <div className="space-y-2">
+                                <Label>Mensagem (opcional)</Label>
+                                <Textarea
+                                  placeholder="Tenho um cliente interessado em imóveis nesta região..."
+                                  value={requestMessage}
+                                  onChange={(e) => setRequestMessage(e.target.value)}
+                                  rows={4}
+                                />
+                              </div>
+                            </div>
+                            <DialogFooter>
+                              <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                                Cancelar
+                              </Button>
+                              <Button 
+                                className="gradient-bg gap-2" 
+                                onClick={handleRequestAccess}
+                                disabled={submitting}
+                              >
+                                {submitting ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Send className="h-4 w-4" />
+                                )}
+                                Enviar Solicitação
+                              </Button>
+                            </DialogFooter>
+                          </DialogContent>
+                        </Dialog>
+                      )}
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Broker Info */}
+              {property.owner && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Corretor Captador</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center gap-3">
+                      <div className="h-12 w-12 rounded-full gradient-bg flex items-center justify-center text-primary-foreground font-semibold">
+                        {(property.owner as { full_name: string }).full_name?.charAt(0) || 'C'}
+                      </div>
+                      <div>
+                        <p className="font-medium">{(property.owner as { full_name: string }).full_name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          CRECI: {(property.owner as { creci: string }).creci}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {!hasAccess && !isOwner && (
+                <Card className="bg-muted/50">
+                  <CardContent className="pt-6 text-center">
+                    <Lock className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                    <p className="text-sm text-muted-foreground">
+                      Endereço e contatos do proprietário protegidos até acordo de cooperação.
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          </div>
+        </motion.div>
+      </div>
+    </Layout>
+  );
+}
