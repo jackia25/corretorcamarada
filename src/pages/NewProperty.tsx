@@ -11,9 +11,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { Lock, Eye, Loader2, ArrowLeft } from 'lucide-react';
+import { Lock, Eye, Loader2, ArrowLeft, Camera } from 'lucide-react';
 import { PROPERTY_TYPE_LABELS, BRAZILIAN_STATES, PropertyType } from '@/lib/types';
 import { propertySchema } from '@/lib/validations';
+import { ImageUpload } from '@/components/property/ImageUpload';
 
 export default function NewProperty() {
   const { profile } = useAuth();
@@ -46,6 +47,8 @@ export default function NewProperty() {
     internal_notes: '',
   });
 
+  const [publicPhotos, setPublicPhotos] = useState<string[]>([]);
+  const [sensitivePhotos, setSensitivePhotos] = useState<string[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -90,6 +93,7 @@ export default function NewProperty() {
       bathrooms: validData.bathrooms ? parseInt(validData.bathrooms) : null,
       area_m2: validData.area_m2 ? parseFloat(validData.area_m2) : null,
       features: validData.features ? validData.features.split(',').map(f => f.trim()).filter(Boolean) : null,
+      public_photos: publicPhotos.length > 0 ? publicPhotos : null,
       full_address: validData.full_address,
       address_number: validData.address_number || null,
       address_complement: validData.address_complement || null,
@@ -98,6 +102,7 @@ export default function NewProperty() {
       owner_phone: validData.owner_phone,
       owner_email: validData.owner_email || null,
       internal_notes: validData.internal_notes || null,
+      sensitive_photos: sensitivePhotos.length > 0 ? sensitivePhotos : null,
     });
 
     setLoading(false);
@@ -292,6 +297,28 @@ export default function NewProperty() {
                   onChange={(e) => setFormData({ ...formData, features: e.target.value })}
                 />
               </div>
+
+              <Separator />
+
+              {/* Public Photos Upload */}
+              {profile && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Camera className="h-5 w-5 text-primary" />
+                    <span className="font-medium">Fotos Públicas</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Estas fotos serão visíveis para todos os corretores. A primeira foto será a capa do anúncio.
+                  </p>
+                  <ImageUpload
+                    userId={profile.id}
+                    images={publicPhotos}
+                    onImagesChange={setPublicPhotos}
+                    maxImages={10}
+                    label="Fotos do Imóvel (Públicas)"
+                  />
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -394,6 +421,29 @@ export default function NewProperty() {
                   rows={3}
                 />
               </div>
+
+              <Separator />
+
+              {/* Sensitive Photos Upload */}
+              {profile && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Lock className="h-5 w-5 text-warning" />
+                    <span className="font-medium">Fotos Sensíveis (Protegidas)</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Estas fotos só serão reveladas após acordo de cooperação. Use para documentos, detalhes internos, etc.
+                  </p>
+                  <ImageUpload
+                    userId={profile.id}
+                    images={sensitivePhotos}
+                    onImagesChange={setSensitivePhotos}
+                    maxImages={10}
+                    label="Fotos Sensíveis"
+                    isSensitive
+                  />
+                </div>
+              )}
             </CardContent>
           </Card>
 
