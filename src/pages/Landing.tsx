@@ -126,7 +126,7 @@ export default function Landing() {
               variants={fadeInUp}
               className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto"
             >
-              ParceriaImob protege suas negociações imobiliárias. Dados sensíveis só são
+              Corretor Camarada protege suas negociações imobiliárias. Dados sensíveis só são
               liberados após acordo de cooperação entre corretores, com rastreabilidade total.
             </motion.p>
 
@@ -249,7 +249,7 @@ export default function Landing() {
               viewport={{ once: true }}
             >
               <h2 className="text-3xl font-display font-bold mb-6">
-                Por que usar o ParceriaImob?
+                Por que usar o Corretor Camarada?
               </h2>
               <ul className="space-y-4">
                 {benefits.map((benefit, index) => (
@@ -302,10 +302,10 @@ export default function Landing() {
             <div className="h-8 w-8 rounded-lg gradient-bg flex items-center justify-center">
               <Handshake className="h-4 w-4 text-primary-foreground" />
             </div>
-            <span className="font-display font-semibold">ParceriaImob</span>
+            <span className="font-display font-semibold">Corretor Camarada</span>
           </div>
           <p className="text-sm text-muted-foreground">
-            © 2025 ParceriaImob. Todos os direitos reservados.
+            © 2025 Corretor Camarada. Todos os direitos reservados.
           </p>
         </div>
       </footer>
