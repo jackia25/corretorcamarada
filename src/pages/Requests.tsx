@@ -14,6 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { useToast } from '@/hooks/use-toast';
 import { 
   Inbox, 
@@ -30,7 +31,8 @@ import {
   AlertTriangle,
   FileSignature,
   Percent,
-  Calendar
+  Calendar,
+  Circle
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { AccessRequest, REQUEST_STATUS_LABELS, RequestStatus } from '@/lib/types';
@@ -131,7 +133,16 @@ export default function Requests() {
 
   const clauses = getAgreementClauses();
   const allClausesAccepted = clauses.every((_, index) => acceptedClauses[index]);
+  const acceptedCount = Object.values(acceptedClauses).filter(Boolean).length;
   const canSign = allClausesAccepted && acceptedFinal && userIp;
+
+  const handleAcceptAll = () => {
+    const allAccepted: Record<number, boolean> = {};
+    clauses.forEach((_, index) => {
+      allAccepted[index] = true;
+    });
+    setAcceptedClauses(allAccepted);
+  };
 
   const handleAccept = async () => {
     if (!selectedRequest || !profile || !userIp) return;
@@ -396,8 +407,8 @@ export default function Requests() {
 
         {/* Accept Dialog - Step 1: Terms */}
         <Dialog open={actionDialog === 'accept'} onOpenChange={() => resetDialogState()}>
-          <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
-            <DialogHeader>
+          <DialogContent className="max-w-2xl h-[90vh] flex flex-col p-0">
+            <DialogHeader className="px-6 pt-6 pb-4">
               <DialogTitle className="flex items-center gap-2">
                 {step === 'terms' ? (
                   <>
@@ -414,13 +425,13 @@ export default function Requests() {
               <DialogDescription>
                 {step === 'terms' 
                   ? 'Defina os termos da cooperação. Na próxima etapa você assinará o acordo.'
-                  : 'Leia e aceite cada cláusula para assinar digitalmente o acordo.'}
+                  : 'Clique em cada cláusula para expandir e leia atentamente antes de aceitar.'}
               </DialogDescription>
             </DialogHeader>
 
             {step === 'terms' ? (
               <>
-                <div className="space-y-4 py-4">
+                <div className="space-y-4 px-6 py-4">
                   <div className="space-y-2">
                     <Label>Sua Comissão (%)</Label>
                     <Input
@@ -453,7 +464,7 @@ export default function Requests() {
                     />
                   </div>
                 </div>
-                <DialogFooter>
+                <DialogFooter className="px-6 py-4 border-t">
                   <Button variant="outline" onClick={() => resetDialogState()}>
                     Cancelar
                   </Button>
@@ -465,8 +476,8 @@ export default function Requests() {
               </>
             ) : (
               <>
-                <ScrollArea className="flex-1 pr-4 max-h-[60vh]">
-                  <div className="space-y-4">
+                <ScrollArea className="flex-1 px-6">
+                  <div className="space-y-4 pb-4">
                     {/* Agreement Summary */}
                     <div className="bg-muted/50 p-4 rounded-lg space-y-2">
                       <div className="flex items-center gap-2">
@@ -494,42 +505,89 @@ export default function Requests() {
                       )}
                     </div>
 
-                    {/* Clauses */}
-                    <h4 className="font-semibold flex items-center gap-2">
-                      <Shield className="h-4 w-4 text-primary" />
-                      Cláusulas do Acordo
-                    </h4>
-                    
-                    {clauses.map((clause, index) => (
-                      <motion.div
-                        key={index}
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: index * 0.03 }}
-                        className={`p-3 rounded-lg border transition-colors ${
-                          acceptedClauses[index] ? 'border-success bg-success/5' : 'border-border'
-                        }`}
-                      >
-                        <div className="flex items-start gap-3">
-                          <Checkbox
-                            id={`clause-${index}`}
-                            checked={acceptedClauses[index] || false}
-                            onCheckedChange={(checked) => 
-                              setAcceptedClauses(prev => ({ ...prev, [index]: !!checked }))
-                            }
-                            className="mt-0.5"
-                          />
-                          <div className="flex-1">
-                            <Label htmlFor={`clause-${index}`} className="font-medium cursor-pointer text-sm">
-                              {clause.title}
-                            </Label>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {clause.content}
-                            </p>
-                          </div>
+                    {/* Clauses Header with Progress */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-semibold flex items-center gap-2">
+                          <Shield className="h-4 w-4 text-primary" />
+                          Cláusulas do Acordo
+                        </h4>
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm text-muted-foreground">
+                            {acceptedCount}/{clauses.length} aceitas
+                          </span>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={handleAcceptAll}
+                            disabled={allClausesAccepted}
+                          >
+                            Aceitar Todas
+                          </Button>
                         </div>
-                      </motion.div>
-                    ))}
+                      </div>
+
+                      {/* Progress Bar */}
+                      <div className="w-full bg-muted rounded-full h-2">
+                        <div 
+                          className="bg-primary h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${(acceptedCount / clauses.length) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Clauses Accordion */}
+                    <Accordion type="single" collapsible className="space-y-2">
+                      {clauses.map((clause, index) => (
+                        <motion.div
+                          key={index}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: index * 0.03 }}
+                        >
+                          <AccordionItem 
+                            value={`clause-${index}`} 
+                            className={`border-2 rounded-lg px-4 transition-colors ${
+                              acceptedClauses[index] 
+                                ? 'border-green-500 bg-green-50 dark:bg-green-950/20' 
+                                : 'border-border bg-background'
+                            }`}
+                          >
+                            <AccordionTrigger className="hover:no-underline py-3">
+                              <div className="flex items-center gap-3 text-left">
+                                {acceptedClauses[index] ? (
+                                  <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
+                                ) : (
+                                  <Circle className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                                )}
+                                <span className="font-medium text-sm">{clause.title}</span>
+                              </div>
+                            </AccordionTrigger>
+                            <AccordionContent className="pt-2 pb-4">
+                              <p className="text-sm text-muted-foreground mb-4 whitespace-pre-line">
+                                {clause.content}
+                              </p>
+                              <div className="flex items-center gap-3 pt-2 border-t">
+                                <Checkbox
+                                  id={`clause-${index}`}
+                                  checked={acceptedClauses[index] || false}
+                                  onCheckedChange={(checked) => 
+                                    setAcceptedClauses(prev => ({ ...prev, [index]: !!checked }))
+                                  }
+                                  className="h-5 w-5 border-2 border-gray-400 data-[state=checked]:bg-green-500 data-[state=checked]:border-green-500"
+                                />
+                                <Label 
+                                  htmlFor={`clause-${index}`} 
+                                  className="cursor-pointer text-sm font-medium"
+                                >
+                                  Li e aceito esta cláusula
+                                </Label>
+                              </div>
+                            </AccordionContent>
+                          </AccordionItem>
+                        </motion.div>
+                      ))}
+                    </Accordion>
 
                     {/* Warning */}
                     <div className="bg-warning/10 border border-warning/30 p-3 rounded-lg">
@@ -544,20 +602,25 @@ export default function Requests() {
                     {/* Final Acceptance */}
                     <div className={`p-3 rounded-lg border-2 transition-colors ${
                       acceptedFinal ? 'border-primary bg-primary/5' : 'border-border'
-                    }`}>
+                    } ${!allClausesAccepted ? 'opacity-50' : ''}`}>
                       <div className="flex items-start gap-3">
                         <Checkbox
                           id="final-acceptance"
                           checked={acceptedFinal}
                           onCheckedChange={(checked) => setAcceptedFinal(!!checked)}
                           disabled={!allClausesAccepted}
-                          className="mt-0.5"
+                          className="mt-0.5 h-5 w-5"
                         />
-                        <Label htmlFor="final-acceptance" className="cursor-pointer text-sm">
+                        <Label htmlFor="final-acceptance" className={`cursor-pointer text-sm ${!allClausesAccepted ? 'cursor-not-allowed' : ''}`}>
                           <span className="font-medium">Declaro que li, compreendi e concordo com todas as cláusulas</span>
                           <p className="text-xs text-muted-foreground mt-1">
                             Confirmo minha identidade como <strong>{profile?.full_name}</strong> (CRECI: {profile?.creci})
                           </p>
+                          {!allClausesAccepted && (
+                            <p className="text-xs text-destructive mt-2">
+                              ⚠️ Você precisa aceitar todas as {clauses.length} cláusulas acima antes de prosseguir
+                            </p>
+                          )}
                         </Label>
                       </div>
                     </div>
@@ -578,7 +641,7 @@ export default function Requests() {
                     </div>
                   </div>
                 </ScrollArea>
-                <DialogFooter className="mt-4">
+                <DialogFooter className="px-6 py-4 border-t">
                   <Button variant="outline" onClick={() => setStep('terms')}>
                     Voltar
                   </Button>
