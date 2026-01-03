@@ -177,36 +177,36 @@ export function AgreementSignatureDialog({
                 Cláusulas do Acordo
               </h4>
               
-              {clauses.map((clause, index) => (
-                <motion.div
-                  key={index}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  className={`p-4 rounded-lg border transition-colors ${
-                    acceptedClauses[index] ? 'border-success bg-success/5' : 'border-border'
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    <Checkbox
-                      id={`clause-${index}`}
-                      checked={acceptedClauses[index] || false}
-                      onCheckedChange={(checked) => 
-                        setAcceptedClauses(prev => ({ ...prev, [index]: !!checked }))
-                      }
-                      className="mt-1"
-                    />
-                    <div className="flex-1">
-                      <Label htmlFor={`clause-${index}`} className="font-medium cursor-pointer">
-                        {clause.title}
-                      </Label>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        {clause.content}
-                      </p>
+                {clauses.map((clause, index) => (
+                  <motion.div
+                    key={index}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                    className={`p-4 rounded-lg border-2 transition-colors ${
+                      acceptedClauses[index] ? 'border-green-500 bg-green-50 dark:bg-green-950/20' : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <Checkbox
+                        id={`dialog-clause-${index}`}
+                        checked={acceptedClauses[index] || false}
+                        onCheckedChange={(checked) => 
+                          setAcceptedClauses(prev => ({ ...prev, [index]: !!checked }))
+                        }
+                        className="mt-1 h-5 w-5 border-2 border-gray-400 data-[state=checked]:bg-green-500 data-[state=checked]:border-green-500"
+                      />
+                      <div className="flex-1">
+                        <Label htmlFor={`dialog-clause-${index}`} className="font-medium cursor-pointer">
+                          {clause.title}
+                        </Label>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {clause.content}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                </motion.div>
-              ))}
+                  </motion.div>
+                ))}
             </div>
 
             {/* Warning */}
