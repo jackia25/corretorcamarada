@@ -99,12 +99,16 @@ export default function Properties() {
                 src={property.public_photos[0]} 
                 alt={property.title}
                 className="w-full h-full object-cover"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.style.display = 'none';
+                  target.nextElementSibling?.classList.remove('hidden');
+                }}
               />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center">
-                <Building2 className="h-12 w-12 text-muted-foreground/50" />
-              </div>
-            )}
+            ) : null}
+            <div className={`w-full h-full flex items-center justify-center ${property.public_photos?.[0] ? 'hidden' : ''}`}>
+              <Building2 className="h-12 w-12 text-muted-foreground/50" />
+            </div>
             <Badge className="absolute top-3 left-3">
               {PROPERTY_TYPE_LABELS[property.property_type as PropertyType]}
             </Badge>
