@@ -284,16 +284,97 @@ export default function PropertyDetail() {
                 </Card>
               )}
 
-              {/* Sensitive Data - Only visible if has access */}
-              {hasAccess && (
-                <Card className="border-success">
+              {/* Sensitive Data Section */}
+              {!isOwner && (
+                <Card className={hasAccess ? "border-success" : "border-muted relative overflow-hidden"}>
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-success">
-                      <CheckCircle2 className="h-5 w-5" />
-                      Dados Desbloqueados
+                    <CardTitle className={`flex items-center gap-2 ${hasAccess ? "text-success" : ""}`}>
+                      {hasAccess ? (
+                        <>
+                          <CheckCircle2 className="h-5 w-5" />
+                          Dados Desbloqueados
+                        </>
+                      ) : (
+                        <>
+                          <Lock className="h-5 w-5 text-muted-foreground" />
+                          Dados Protegidos
+                        </>
+                      )}
                     </CardTitle>
                     <CardDescription>
-                      Você tem um acordo ativo com o corretor captador.
+                      {hasAccess 
+                        ? "Você tem um acordo ativo com o corretor captador."
+                        : "Solicite acesso para visualizar os dados completos do imóvel."}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4 relative">
+                    {/* Overlay blur effect when no access */}
+                    {!hasAccess && (
+                      <div className="absolute inset-0 bg-background/60 backdrop-blur-sm z-10 flex flex-col items-center justify-center gap-3 rounded-lg">
+                        <Lock className="h-8 w-8 text-primary" />
+                        <p className="text-sm font-medium text-center px-4">
+                          Solicite acesso para desbloquear
+                        </p>
+                        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                          <DialogTrigger asChild>
+                            <Button size="sm" className="gradient-bg gap-2">
+                              <Lock className="h-3 w-3" />
+                              Solicitar Acesso
+                            </Button>
+                          </DialogTrigger>
+                        </Dialog>
+                      </div>
+                    )}
+                    
+                    {/* Blurred/Visible content */}
+                    <div className={!hasAccess ? "select-none" : ""}>
+                      <div>
+                        <Label className="text-muted-foreground">Endereço Completo</Label>
+                        <p className="font-medium">
+                          {hasAccess 
+                            ? `${property.full_address}, ${property.address_number}${property.address_complement ? ` - ${property.address_complement}` : ''}${property.zip_code ? ` - CEP: ${property.zip_code}` : ''}`
+                            : "Rua Exemplo, 123 - Apto 45 - CEP: 01234-567"}
+                        </p>
+                      </div>
+
+                      <div className="grid md:grid-cols-2 gap-4 mt-4">
+                        <div>
+                          <Label className="text-muted-foreground">Proprietário</Label>
+                          <p className="font-medium flex items-center gap-2">
+                            <User className="h-4 w-4" />
+                            {hasAccess ? property.owner_name : "João da Silva"}
+                          </p>
+                        </div>
+                        <div>
+                          <Label className="text-muted-foreground">Telefone</Label>
+                          <p className="font-medium flex items-center gap-2">
+                            <Phone className="h-4 w-4" />
+                            {hasAccess ? property.owner_phone : "(11) 99999-9999"}
+                          </p>
+                        </div>
+                        <div>
+                          <Label className="text-muted-foreground">Email</Label>
+                          <p className="font-medium flex items-center gap-2">
+                            <Mail className="h-4 w-4" />
+                            {hasAccess ? (property.owner_email || "Não informado") : "exemplo@email.com"}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Owner view - always show real data */}
+              {isOwner && (
+                <Card className="border-primary">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <User className="h-5 w-5" />
+                      Dados do Proprietário
+                    </CardTitle>
+                    <CardDescription>
+                      Você é o corretor captador deste imóvel.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
