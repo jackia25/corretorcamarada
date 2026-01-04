@@ -19,11 +19,13 @@ import {
   Percent,
   Download,
   FileSignature,
-  Scale
+  Scale,
+  AlertTriangle
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { CooperationAgreement, AGREEMENT_STATUS_LABELS, AgreementStatus } from '@/lib/types';
 import { AgreementSignatureDialog } from '@/components/agreement/AgreementSignatureDialog';
+import { ReportCrossingDialog } from '@/components/report/ReportCrossingDialog';
 import { generateAgreementPdf, downloadPdf } from '@/lib/generateAgreementPdf';
 import { AgreementData } from '@/lib/agreementTemplate';
 
@@ -57,6 +59,8 @@ export default function Agreements() {
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
   const [signatureDialogOpen, setSignatureDialogOpen] = useState(false);
   const [selectedAgreement, setSelectedAgreement] = useState<AgreementWithDetails | null>(null);
+  const [reportDialogOpen, setReportDialogOpen] = useState(false);
+  const [reportingAgreement, setReportingAgreement] = useState<AgreementWithDetails | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -203,12 +207,19 @@ export default function Agreements() {
     });
   };
 
+  const openReportDialog = (agreement: AgreementWithDetails) => {
+    setReportingAgreement(agreement);
+    setReportDialogOpen(true);
+  };
+
   const AgreementCard = ({ agreement }: { agreement: AgreementWithDetails }) => {
     const isCaptador = agreement.captador_id === profile?.id;
     const iAccepted = isCaptador ? agreement.captador_accepted_at : agreement.buyer_broker_accepted_at;
     const otherAccepted = isCaptador ? agreement.buyer_broker_accepted_at : agreement.captador_accepted_at;
     const myRole = isCaptador ? 'Captador' : 'Corretor do Comprador';
     const myCommission = isCaptador ? agreement.captador_commission_percent : agreement.buyer_broker_commission_percent;
+    const otherPartyName = isCaptador ? agreement.buyer_broker.full_name : agreement.captador.full_name;
+    const otherPartyId = isCaptador ? agreement.buyer_broker_id : agreement.captador_id;
 
     return (
       <motion.div
@@ -337,12 +348,22 @@ export default function Agreements() {
                 )}
 
                 {agreement.status === 'active' && (
-                  <Link to={`/properties/${agreement.property_id}`}>
-                    <Button variant="outline" className="gap-2 w-full">
-                      <Eye className="h-4 w-4" />
-                      Ver Imóvel
+                  <>
+                    <Link to={`/properties/${agreement.property_id}`}>
+                      <Button variant="outline" className="gap-2 w-full">
+                        <Eye className="h-4 w-4" />
+                        Ver Imóvel
+                      </Button>
+                    </Link>
+                    <Button
+                      variant="ghost"
+                      className="gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+                      onClick={() => openReportDialog(agreement)}
+                    >
+                      <AlertTriangle className="h-4 w-4" />
+                      Denunciar
                     </Button>
-                  </Link>
+                  </>
                 )}
               </div>
             </div>
@@ -358,11 +379,19 @@ export default function Agreements() {
   return (
     <Layout>
       <div className="container py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-display font-bold">Acordos de Cooperação</h1>
-          <p className="text-muted-foreground">
-            Gerencie seus acordos com outros corretores
-          </p>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+          <div>
+            <h1 className="text-3xl font-display font-bold">Acordos de Cooperação</h1>
+            <p className="text-muted-foreground">
+              Gerencie seus acordos com outros corretores
+            </p>
+          </div>
+          <Link to="/reports">
+            <Button variant="outline" className="gap-2">
+              <AlertTriangle className="h-4 w-4" />
+              Minhas Denúncias
+            </Button>
+          </Link>
         </div>
 
         {/* Stats */}
@@ -421,6 +450,21 @@ export default function Agreements() {
               <AgreementCard key={agreement.id} agreement={agreement} />
             ))}
           </div>
+        )}
+
+        {/* Report Dialog */}
+        {reportingAgreement && (
+          <ReportCrossingDialog
+            open={reportDialogOpen}
+            onOpenChange={(open) => {
+              setReportDialogOpen(open);
+              if (!open) setReportingAgreement(null);
+            }}
+            agreementId={reportingAgreement.id}
+            propertyId={reportingAgreement.property_id}
+            reportedUserId={reportingAgreement.captador_id === profile?.id ? reportingAgreement.buyer_broker_id : reportingAgreement.captador_id}
+            reportedUserName={reportingAgreement.captador_id === profile?.id ? reportingAgreement.buyer_broker.full_name : reportingAgreement.captador.full_name}
+          />
         )}
 
         {/* Signature Dialog */}

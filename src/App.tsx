@@ -18,6 +18,7 @@ import NewDemand from "./pages/NewDemand";
 import Requests from "./pages/Requests";
 import Agreements from "./pages/Agreements";
 import Logs from "./pages/Logs";
+import CrossingReports from "./pages/CrossingReports";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -43,6 +44,7 @@ const App = () => (
             <Route path="/demands/new" element={<ProtectedRoute><NewDemand /></ProtectedRoute>} />
             <Route path="/requests" element={<ProtectedRoute><Requests /></ProtectedRoute>} />
             <Route path="/agreements" element={<ProtectedRoute><Agreements /></ProtectedRoute>} />
+            <Route path="/reports" element={<ProtectedRoute><CrossingReports /></ProtectedRoute>} />
             <Route path="/logs" element={<ProtectedRoute><Logs /></ProtectedRoute>} />
             
             <Route path="*" element={<NotFound />} />
