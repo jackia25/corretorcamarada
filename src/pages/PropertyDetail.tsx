@@ -25,7 +25,8 @@ import {
   Mail,
   CheckCircle2,
   Clock,
-  Loader2
+  Loader2,
+  FileText
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Property, AccessRequest, CooperationAgreement, PROPERTY_TYPE_LABELS, PropertyType } from '@/lib/types';
@@ -286,9 +287,9 @@ export default function PropertyDetail() {
 
               {/* Sensitive Data Section */}
               {!isOwner && (
-                <Card className={hasAccess ? "border-success" : "border-muted relative overflow-hidden"}>
+                <Card className={hasAccess ? "border-success" : "border-amber-500/50 bg-gradient-to-br from-amber-500/5 to-transparent"}>
                   <CardHeader>
-                    <CardTitle className={`flex items-center gap-2 ${hasAccess ? "text-success" : ""}`}>
+                    <CardTitle className={`flex items-center gap-2 ${hasAccess ? "text-success" : "text-amber-600"}`}>
                       {hasAccess ? (
                         <>
                           <CheckCircle2 className="h-5 w-5" />
@@ -296,71 +297,111 @@ export default function PropertyDetail() {
                         </>
                       ) : (
                         <>
-                          <Lock className="h-5 w-5 text-muted-foreground" />
-                          Dados Protegidos
+                          <Lock className="h-5 w-5" />
+                          Informações Exclusivas
                         </>
                       )}
                     </CardTitle>
                     <CardDescription>
                       {hasAccess 
                         ? "Você tem um acordo ativo com o corretor captador."
-                        : "Solicite acesso para visualizar os dados completos do imóvel."}
+                        : "Dados disponíveis após acordo de cooperação com o corretor captador."}
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-4 relative">
-                    {/* Overlay blur effect when no access */}
-                    {!hasAccess && (
-                      <div className="absolute inset-0 bg-background/60 backdrop-blur-sm z-10 flex flex-col items-center justify-center gap-3 rounded-lg">
-                        <Lock className="h-8 w-8 text-primary" />
-                        <p className="text-sm font-medium text-center px-4">
-                          Solicite acesso para desbloquear
+                  <CardContent className="space-y-4">
+                    {/* Address field */}
+                    <div>
+                      <Label className="text-muted-foreground flex items-center gap-2">
+                        <MapPin className="h-3 w-3" />
+                        Endereço Completo
+                      </Label>
+                      {hasAccess ? (
+                        <p className="font-medium mt-1">
+                          {property.full_address}, {property.address_number}
+                          {property.address_complement && ` - ${property.address_complement}`}
+                          {property.zip_code && ` - CEP: ${property.zip_code}`}
                         </p>
+                      ) : (
+                        <p className="font-medium mt-1 blur-sm select-none pointer-events-none text-muted-foreground">
+                          {property.neighborhood}, {property.city} - Número 000, Complemento Exemplo - CEP: 00000-000
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="grid md:grid-cols-2 gap-4">
+                      {/* Owner name field */}
+                      <div>
+                        <Label className="text-muted-foreground flex items-center gap-2">
+                          <User className="h-3 w-3" />
+                          Nome do Proprietário
+                        </Label>
+                        {hasAccess ? (
+                          <p className="font-medium mt-1">{property.owner_name}</p>
+                        ) : (
+                          <p className="font-medium mt-1 blur-sm select-none pointer-events-none text-muted-foreground">
+                            Nome do Proprietário Exemplo
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Phone field */}
+                      <div>
+                        <Label className="text-muted-foreground flex items-center gap-2">
+                          <Phone className="h-3 w-3" />
+                          Telefone do Proprietário
+                        </Label>
+                        {hasAccess ? (
+                          <p className="font-medium mt-1">{property.owner_phone}</p>
+                        ) : (
+                          <p className="font-medium mt-1 blur-sm select-none pointer-events-none text-muted-foreground">
+                            (00) 00000-0000
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Email field */}
+                      <div>
+                        <Label className="text-muted-foreground flex items-center gap-2">
+                          <Mail className="h-3 w-3" />
+                          Email do Proprietário
+                        </Label>
+                        {hasAccess ? (
+                          <p className="font-medium mt-1">{property.owner_email || "Não informado"}</p>
+                        ) : (
+                          <p className="font-medium mt-1 blur-sm select-none pointer-events-none text-muted-foreground">
+                            email@exemplo.com.br
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Internal notes field - only show if has access and notes exist */}
+                      {hasAccess && property.internal_notes && (
+                        <div className="md:col-span-2">
+                          <Label className="text-muted-foreground flex items-center gap-2">
+                            <FileText className="h-3 w-3" />
+                            Observações Internas
+                          </Label>
+                          <p className="font-medium mt-1 text-sm">{property.internal_notes}</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* CTA Button when no access */}
+                    {!hasAccess && (
+                      <div className="pt-4 border-t border-border">
                         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                           <DialogTrigger asChild>
-                            <Button size="sm" className="gradient-bg gap-2">
-                              <Lock className="h-3 w-3" />
-                              Solicitar Acesso
+                            <Button className="w-full gradient-bg gap-2" size="lg">
+                              <Lock className="h-4 w-4" />
+                              Solicitar Acesso aos Dados
                             </Button>
                           </DialogTrigger>
                         </Dialog>
-                      </div>
-                    )}
-                    
-                    {/* Blurred/Visible content */}
-                    <div className={!hasAccess ? "select-none" : ""}>
-                      <div>
-                        <Label className="text-muted-foreground">Endereço Completo</Label>
-                        <p className="font-medium">
-                          {hasAccess 
-                            ? `${property.full_address}, ${property.address_number}${property.address_complement ? ` - ${property.address_complement}` : ''}${property.zip_code ? ` - CEP: ${property.zip_code}` : ''}`
-                            : "Rua Exemplo, 123 - Apto 45 - CEP: 01234-567"}
+                        <p className="text-xs text-muted-foreground text-center mt-2">
+                          Após aprovação e assinatura do acordo, você terá acesso completo
                         </p>
                       </div>
-
-                      <div className="grid md:grid-cols-2 gap-4 mt-4">
-                        <div>
-                          <Label className="text-muted-foreground">Proprietário</Label>
-                          <p className="font-medium flex items-center gap-2">
-                            <User className="h-4 w-4" />
-                            {hasAccess ? property.owner_name : "João da Silva"}
-                          </p>
-                        </div>
-                        <div>
-                          <Label className="text-muted-foreground">Telefone</Label>
-                          <p className="font-medium flex items-center gap-2">
-                            <Phone className="h-4 w-4" />
-                            {hasAccess ? property.owner_phone : "(11) 99999-9999"}
-                          </p>
-                        </div>
-                        <div>
-                          <Label className="text-muted-foreground">Email</Label>
-                          <p className="font-medium flex items-center gap-2">
-                            <Mail className="h-4 w-4" />
-                            {hasAccess ? (property.owner_email || "Não informado") : "exemplo@email.com"}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
+                    )}
                   </CardContent>
                 </Card>
               )}
