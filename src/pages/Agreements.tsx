@@ -143,40 +143,56 @@ export default function Agreements() {
     }
   };
 
+  const buildAgreementData = (agreement: AgreementWithDetails): AgreementData => ({
+    id: agreement.id,
+    createdAt: agreement.created_at,
+    expiresAt: agreement.expires_at,
+    property: {
+      title: agreement.property.title,
+      neighborhood: agreement.property.neighborhood,
+      city: agreement.property.city,
+      state: agreement.property.state,
+    },
+    captador: {
+      fullName: agreement.captador.full_name,
+      creci: agreement.captador.creci,
+      acceptedAt: agreement.captador_accepted_at,
+      signatureIp: agreement.captador_signature_ip,
+    },
+    buyerBroker: {
+      fullName: agreement.buyer_broker.full_name,
+      creci: agreement.buyer_broker.creci,
+      acceptedAt: agreement.buyer_broker_accepted_at,
+      signatureIp: agreement.buyer_broker_signature_ip,
+    },
+    commissions: {
+      captador: agreement.captador_commission_percent,
+      buyerBroker: agreement.buyer_broker_commission_percent,
+    },
+    terms: agreement.terms,
+    customTerms: null,
+  });
+
+  const handleViewPdf = async (agreement: AgreementWithDetails) => {
+    setDownloadingId(agreement.id);
+    
+    try {
+      const agreementData = buildAgreementData(agreement);
+      const pdfBlob = await generateAgreementPdf(agreementData);
+      const url = URL.createObjectURL(pdfBlob);
+      window.open(url, '_blank');
+    } catch (error) {
+      toast({ variant: 'destructive', title: 'Erro ao gerar PDF' });
+    }
+    
+    setDownloadingId(null);
+  };
+
   const handleDownloadPdf = async (agreement: AgreementWithDetails) => {
     setDownloadingId(agreement.id);
     
     try {
-      const agreementData: AgreementData = {
-        id: agreement.id,
-        createdAt: agreement.created_at,
-        expiresAt: agreement.expires_at,
-        property: {
-          title: agreement.property.title,
-          neighborhood: agreement.property.neighborhood,
-          city: agreement.property.city,
-          state: agreement.property.state,
-        },
-        captador: {
-          fullName: agreement.captador.full_name,
-          creci: agreement.captador.creci,
-          acceptedAt: agreement.captador_accepted_at,
-          signatureIp: agreement.captador_signature_ip,
-        },
-        buyerBroker: {
-          fullName: agreement.buyer_broker.full_name,
-          creci: agreement.buyer_broker.creci,
-          acceptedAt: agreement.buyer_broker_accepted_at,
-          signatureIp: agreement.buyer_broker_signature_ip,
-        },
-        commissions: {
-          captador: agreement.captador_commission_percent,
-          buyerBroker: agreement.buyer_broker_commission_percent,
-        },
-        terms: agreement.terms,
-        customTerms: null,
-      };
-
+      const agreementData = buildAgreementData(agreement);
       const pdfBlob = await generateAgreementPdf(agreementData);
       const filename = `acordo-cooperacao-${agreement.id.slice(0, 8)}.pdf`;
       downloadPdf(pdfBlob, filename);
@@ -330,21 +346,36 @@ export default function Agreements() {
                   </div>
                 )}
 
-                {/* Download PDF button - always available if at least one signed */}
+                {/* View and Download PDF buttons - available if at least one signed */}
                 {(agreement.captador_accepted_at || agreement.buyer_broker_accepted_at) && (
-                  <Button
-                    variant="outline"
-                    className="gap-2"
-                    onClick={() => handleDownloadPdf(agreement)}
-                    disabled={downloadingId === agreement.id}
-                  >
-                    {downloadingId === agreement.id ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Download className="h-4 w-4" />
-                    )}
-                    Baixar PDF
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => handleViewPdf(agreement)}
+                      disabled={downloadingId === agreement.id}
+                      title="Visualizar contrato"
+                    >
+                      {downloadingId === agreement.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="gap-2"
+                      onClick={() => handleDownloadPdf(agreement)}
+                      disabled={downloadingId === agreement.id}
+                    >
+                      {downloadingId === agreement.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Download className="h-4 w-4" />
+                      )}
+                      Baixar PDF
+                    </Button>
+                  </div>
                 )}
 
                 {agreement.status === 'active' && (
