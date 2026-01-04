@@ -165,7 +165,7 @@ export default function Auth() {
             <Handshake className="h-7 w-7 text-primary-foreground" />
           </div>
           <CardTitle className="text-2xl font-display">
-            <span className="gradient-text">Parceria</span>Imob
+            <span className="gradient-text">Corretor</span>Camarada
           </CardTitle>
           <CardDescription>
             Plataforma de colaboração segura entre corretores
