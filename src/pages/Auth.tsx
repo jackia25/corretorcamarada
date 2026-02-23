@@ -11,6 +11,8 @@ import { useToast } from '@/hooks/use-toast';
 import { Handshake, Loader2 } from 'lucide-react';
 import { BRAZILIAN_STATES } from '@/lib/types';
 import { z } from 'zod';
+import { lovable } from '@/integrations/lovable/index';
+import { Separator } from '@/components/ui/separator';
 
 const loginSchema = z.object({
   email: z.string().email('Email inválido'),
