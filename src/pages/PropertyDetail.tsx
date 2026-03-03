@@ -340,9 +340,7 @@ export default function PropertyDetail() {
                   <CardHeader>
                     <CardTitle>Descrição</CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    <p className="whitespace-pre-wrap">{property.description}</p>
-                  </CardContent>
+                  <CardContent>{formatDescription(property.description)}</CardContent>
                 </Card>
               )}
 
