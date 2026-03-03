@@ -80,7 +80,6 @@ serve(async (req) => {
           continue;
         }
 
-        // ===== PARSE PROPERTY DATA FROM MARKDOWN =====
         const parsed = parsePropertyMarkdown(md, metadata, url);
         
         console.log(`Parsed: ${parsed.title} | ${parsed.city} | R$${parsed.price} | ${parsed.area}m² | ${parsed.bedrooms}q | ${parsed.photos.length} fotos`);
@@ -105,7 +104,7 @@ serve(async (req) => {
           owner_name: 'Andy Lemos',
           owner_phone: '+55 (11) 9 5090-3006',
           is_active: true,
-          internal_notes: `Importado de: ${url}${parsed.code ? ` | Código: ${parsed.code}` : ''}${parsed.condominium ? ` | Condomínio: ${parsed.condominium}` : ''}`,
+          internal_notes: buildInternalNotes(parsed, url),
         });
 
         if (insertError) {
@@ -129,14 +128,31 @@ serve(async (req) => {
   });
 });
 
+// ===== BUILD INTERNAL NOTES =====
+function buildInternalNotes(parsed: ParsedProperty, url: string): string {
+  const parts = [`Importado de: ${url}`];
+  if (parsed.code) parts.push(`Código: ${parsed.code}`);
+  if (parsed.condominium) parts.push(`Condomínio/Propriedade: ${parsed.condominium}`);
+  if (parsed.listingStatus) parts.push(`Situação: ${parsed.listingStatus}`);
+  if (parsed.iptu) parts.push(`IPTU: R$${parsed.iptu}`);
+  if (parsed.areaTotal) parts.push(`Área Total: ${parsed.areaTotal}m²`);
+  if (parsed.garages) parts.push(`Garagens: ${parsed.garages}`);
+  if (parsed.suites) parts.push(`Suítes: ${parsed.suites}`);
+  return parts.join(' | ');
+}
+
+// ===== TYPES =====
 interface ParsedProperty {
   title: string;
   description: string;
   price: number | null;
   area: number | null;
+  areaTotal: number | null;
   bedrooms: number | null;
   bathrooms: number | null;
   garages: number | null;
+  suites: number | null;
+  iptu: number | null;
   photos: string[];
   features: string[];
   propertyType: string;
@@ -147,176 +163,346 @@ interface ParsedProperty {
   zipCode: string;
   condominium: string;
   code: string;
+  listingStatus: string;
 }
 
+// ===== MAIN PARSER =====
 function parsePropertyMarkdown(md: string, metadata: any, url: string): ParsedProperty {
-  // === TITLE ===
-  // Pattern: "# Title – Código XXXX"
-  const titleMatch = md.match(/^#\s+(.+?)$/m);
-  const title = titleMatch ? titleMatch[1].replace(/\s*–\s*Código\s*\d+/, '').trim() : (metadata.title || 'Imóvel sem título');
-
-  // === CODE ===
-  const codeMatch = md.match(/(?:Código|ID do imóvel)[:\s]*(?:HZ)?(\d+)/i);
-  const code = codeMatch ? codeMatch[1] : '';
-
-  // === PRICE ===
-  // Pattern: "- R$1.999.000" or "**Preço** R$1.999.000"
-  const priceMatch = md.match(/R\$\s*([\d.,]+)/);
-  const price = priceMatch ? parseFloat(priceMatch[1].replace(/\./g, '').replace(',', '.')) : null;
-
-  // === AREA ===
-  // Pattern: "**144 m²**" or "**Área construída** 144 m²"
-  const areaMatch = md.match(/(\d+)\s*m[²2]/i);
-  const area = areaMatch ? parseFloat(areaMatch[1]) : null;
-
-  // === BEDROOMS (Dormitórios / Camas) ===
-  const bedMatch = md.match(/\*\*(\d+)\*\*\s*\n\s*-\s*Dormitórios/i) ||
-                   md.match(/\*\*Dormitórios\*\*\s*(\d+)/i) ||
-                   md.match(/Camas[:\s]*(\d+)/i) ||
-                   md.match(/(\d+)\s*(?:quartos?|suítes?|dormitórios?)/i);
-  const bedrooms = bedMatch ? parseInt(bedMatch[1]) : null;
-
-  // === BATHROOMS ===
-  const bathMatch = md.match(/\*\*Banheiros\*\*\s*(\d+)/i) ||
-                    md.match(/Banheiros[:\s]*(\d+)/i) ||
-                    md.match(/(\d+)\s*banheiros?/i);
-  const bathrooms = bathMatch ? parseInt(bathMatch[1]) : null;
-
-  // === GARAGES ===
-  const garageMatch = md.match(/\*\*(\d+)\*\*\s*\n\s*-\s*Garagens/i) ||
-                      md.match(/\*\*Garagens\*\*\s*(\d+)/i) ||
-                      md.match(/Garagens?[:\s]*(\d+)/i) ||
-                      md.match(/(\d+)\s*(?:garagens?|vagas?)/i);
-  const garages = garageMatch ? parseInt(garageMatch[1]) : null;
-
-  // === PHOTOS ===
-  // Extract all image URLs from markdown, filtering for property photos
-  const photoRegex = /\[?\!\[.*?\]\((https?:\/\/lemosproperties\.com\.br\/wp-content\/uploads\/[^\s)]+)\)/gi;
-  const photos: string[] = [];
-  let photoMatch;
-  while ((photoMatch = photoRegex.exec(md)) !== null) {
-    let photoUrl = photoMatch[1];
-    // Skip agent avatar images
-    if (photoUrl.includes('Captura-de-tela') || photoUrl.includes('avatar') || photoUrl.includes('logo')) continue;
-    // Prefer high-res versions: remove thumbnail sizing if present
-    if (!photos.includes(photoUrl)) photos.push(photoUrl);
-  }
-  // Also catch link-wrapped images: [![](img)](link)
-  const linkPhotoRegex = /\[!\[.*?\]\((https?:\/\/lemosproperties\.com\.br\/wp-content\/uploads\/[^\s)]+)\)\]/gi;
-  while ((photoMatch = linkPhotoRegex.exec(md)) !== null) {
-    let photoUrl = photoMatch[1];
-    if (photoUrl.includes('Captura-de-tela') || photoUrl.includes('avatar') || photoUrl.includes('logo')) continue;
-    if (!photos.includes(photoUrl)) photos.push(photoUrl);
-  }
-
-  // === FEATURES (Destaques) ===
-  const features: string[] = [];
-  const featuresSection = md.match(/## Destaques\s*\n([\s\S]*?)(?=\n## |\n---|\n\*\*|$)/i);
-  if (featuresSection) {
-    const featureLines = featuresSection[1].match(/\[([^\]]+)\]/g);
-    if (featureLines) {
-      featureLines.forEach(f => {
-        const name = f.replace(/[\[\]]/g, '').trim();
-        if (name && !name.startsWith('http')) features.push(name);
-      });
-    }
-  }
-  // Also try simple list format
-  if (features.length === 0) {
-    const featSection = md.match(/## Destaques\s*\n([\s\S]*?)(?=\n## |$)/i);
-    if (featSection) {
-      const items = featSection[1].match(/-\s+(.+)/g);
-      if (items) {
-        items.forEach(item => {
-          const clean = item.replace(/^-\s+/, '').replace(/\[|\]\(.*?\)/g, '').trim();
-          if (clean && clean.length < 50) features.push(clean);
-        });
-      }
-    }
-  }
-  // Add garages as feature if present
-  if (garages) features.push(`${garages} vaga${garages > 1 ? 's' : ''} de garagem`);
-
-  // === DESCRIPTION ===
-  const descSection = md.match(/## Descrição\s*\n([\s\S]*?)(?=\n## |\n\[Read More\]|$)/i);
-  let description = '';
-  if (descSection) {
-    description = descSection[1]
-      .replace(/\[Read More\].*$/i, '')
-      .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1') // remove links but keep text
-      .trim();
-  }
-  // Append "Read More" continuation if present
-  const descContinuation = md.match(/\[Read More\].*?\n([\s\S]*?)(?=\n## |$)/i);
-  if (descContinuation) {
-    description += '\n\n' + descContinuation[1].trim();
-  }
-  if (!description) description = metadata.description || '';
-
-  // === PROPERTY TYPE ===
-  // From "Tipo de imóvel" detail or URL
-  const typeMatch = md.match(/\*\*Tipo de imóvel\*\*\s*(.+)/i) ||
-                    md.match(/Tipo de imóvel\s*\n\s*-\s*(.+)/i);
-  const typeStr = typeMatch ? typeMatch[1].trim().toLowerCase() : '';
-  
-  const lowerAll = (title + ' ' + url + ' ' + typeStr).toLowerCase();
-  let propertyType = 'outro';
-  if (lowerAll.includes('apartamento') || lowerAll.includes('flat') || lowerAll.includes('duplex') || lowerAll.includes('cobertura') || lowerAll.includes('studio')) propertyType = 'apartamento';
-  else if (lowerAll.includes('casa') || lowerAll.includes('residência') || lowerAll.includes('residencia') || lowerAll.includes('sobrado') || lowerAll.includes('mansão') || lowerAll.includes('mansao')) propertyType = 'casa';
-  else if (lowerAll.includes('terreno') || lowerAll.includes('lote')) propertyType = 'terreno';
-  else if (lowerAll.includes('sala') || lowerAll.includes('comercial') || lowerAll.includes('corporativ') || lowerAll.includes('laje') || lowerAll.includes('escritório') || lowerAll.includes('escritorio')) propertyType = 'comercial';
-  // "Condomínio" type from source often means apartment in a condo
-  else if (lowerAll.includes('condomínio') || lowerAll.includes('condominio')) propertyType = 'apartamento';
-
-  // === LOCATION ===
-  // From "## Localização" section
-  const cityMatch = md.match(/\*\*Cidade:\*\*\s*(.+)/i);
-  const city = cityMatch ? cityMatch[1].trim() : 'Barueri';
-
-  const stateMatch = md.match(/\*\*Estado\/Municipio:\*\*\s*(.+)/i);
-  let state = stateMatch ? stateMatch[1].trim() : 'SP';
-  // Normalize "São Paulo" → "SP"
-  if (state.toLowerCase() === 'são paulo') state = 'SP';
-
-  const zipMatch = md.match(/\*\*CEP\s*\/?\s*Código Postal:\*\*\s*(\d+)/i);
-  const zipCode = zipMatch ? zipMatch[1] : '';
-
-  const areaLocMatch = md.match(/\*\*Área:\*\*\s*(.+)/i);
-  const neighborhood = areaLocMatch ? areaLocMatch[1].trim() : 'Alphaville';
-
-  // Address from "Localidade Aproximada" or line after title
-  const addrMatch = md.match(/\*\*Localidade Aproximada:\*\*\s*(.+)/i);
-  let address = addrMatch ? addrMatch[1].trim() : '';
-  if (!address) {
-    // Fallback: line after the H1 title
-    const afterTitle = md.match(/^#\s+.+\n+(.+)/m);
-    if (afterTitle && !afterTitle[1].startsWith('Destaque') && !afterTitle[1].startsWith('-') && !afterTitle[1].startsWith('[')) {
-      address = afterTitle[1].trim();
-    }
-  }
-  if (!address) address = neighborhood;
-
-  // === CONDOMINIUM ===
-  const condMatch = md.match(/\*\*Propriedade\*\*\s*(.+)/i);
-  const condominium = condMatch ? condMatch[1].trim() : '';
+  const title = parseTitle(md, metadata);
+  const code = parseCode(md);
+  const price = parsePrice(md);
+  const details = parseDetailsSection(md);
+  const area = details.areaConstructed || parseAreaFallback(md);
+  const areaTotal = details.areaTotal;
+  const bedrooms = details.bedrooms || parseBedrooms(md);
+  const bathrooms = details.bathrooms || parseBathrooms(md);
+  const garages = details.garages || parseGarages(md);
+  const suites = details.suites;
+  const iptu = details.iptu;
+  const listingStatus = details.listingStatus || parseListingStatus(md);
+  const condominium = details.condominium;
+  const photos = parsePhotos(md);
+  const features = parseFeatures(md);
+  const description = parseDescription(md, metadata);
+  const location = parseLocation(md);
+  const propertyType = determinePropertyType(title, url, details.propertyTypeRaw);
 
   return {
     title: code ? `${title} – Código ${code}` : title,
     description,
     price,
     area,
+    areaTotal,
     bedrooms,
     bathrooms,
     garages,
+    suites,
+    iptu,
     photos,
-    features,
+    features: garages ? [...features, `${garages} vaga${garages > 1 ? 's' : ''} de garagem`] : features,
     propertyType,
-    address,
+    address: location.address,
+    neighborhood: location.neighborhood,
+    city: location.city,
+    state: location.state,
+    zipCode: location.zipCode,
+    condominium,
+    code,
+    listingStatus,
+  };
+}
+
+// ===== INDIVIDUAL PARSERS =====
+
+function parseTitle(md: string, metadata: any): string {
+  const match = md.match(/^#\s+(.+?)$/m);
+  if (match) {
+    return match[1].replace(/\s*–\s*Código\s*\w+/, '').trim();
+  }
+  return metadata.title || 'Imóvel sem título';
+}
+
+function parseCode(md: string): string {
+  // From "ID do imóvel" in details section: "- **ID do imóvel** HZ0076"
+  const detailMatch = md.match(/\*\*ID do imóvel\*\*\s*(HZ?\d+)/i);
+  if (detailMatch) return detailMatch[1];
+  // From title: "Código XXXX" or "Código 0076"
+  const titleMatch = md.match(/Código\s+(\w+)/i);
+  if (titleMatch) return titleMatch[1];
+  return '';
+}
+
+function parsePrice(md: string): number | null {
+  // From details: "- **Preço** R$1.999.000"
+  const detailMatch = md.match(/\*\*Preço\*\*\s*R\$\s*([\d.,]+)/i);
+  if (detailMatch) return parseMoneyValue(detailMatch[1]);
+  // From listing: "- R$1.999.000"
+  const listMatch = md.match(/^-\s*R\$\s*([\d.,]+)/m);
+  if (listMatch) return parseMoneyValue(listMatch[1]);
+  // General fallback
+  const generalMatch = md.match(/R\$\s*([\d.,]+)/);
+  if (generalMatch) return parseMoneyValue(generalMatch[1]);
+  return null;
+}
+
+function parseMoneyValue(str: string): number {
+  return parseFloat(str.replace(/\./g, '').replace(',', '.'));
+}
+
+// Parse the structured "## Detalhes" section with "- **Key** Value" format
+function parseDetailsSection(md: string): {
+  areaConstructed: number | null;
+  areaTotal: number | null;
+  bedrooms: number | null;
+  bathrooms: number | null;
+  garages: number | null;
+  suites: number | null;
+  iptu: number | null;
+  propertyTypeRaw: string;
+  listingStatus: string;
+  condominium: string;
+} {
+  const result = {
+    areaConstructed: null as number | null,
+    areaTotal: null as number | null,
+    bedrooms: null as number | null,
+    bathrooms: null as number | null,
+    garages: null as number | null,
+    suites: null as number | null,
+    iptu: null as number | null,
+    propertyTypeRaw: '',
+    listingStatus: '',
+    condominium: '',
+  };
+
+  // Extract details section
+  const section = md.match(/## Detalhes\s*\n([\s\S]*?)(?=\n## |$)/i);
+  if (!section) return result;
+  const text = section[1];
+
+  // Parse each detail line: "- **Key** Value"
+  const lines = text.match(/-\s+\*\*(.+?)\*\*\s*(.+)/g);
+  if (!lines) return result;
+
+  for (const line of lines) {
+    const m = line.match(/-\s+\*\*(.+?)\*\*\s*(.+)/);
+    if (!m) continue;
+    const key = m[1].trim().toLowerCase();
+    const val = m[2].trim();
+
+    if (key.includes('área construída') || key === 'área construida') {
+      const num = val.match(/([\d.,]+)\s*m/);
+      if (num) result.areaConstructed = parseFloat(num[1].replace(/\./g, '').replace(',', '.'));
+    } else if (key.includes('área total')) {
+      const num = val.match(/([\d.,]+)\s*m/);
+      if (num) result.areaTotal = parseFloat(num[1].replace(/\./g, '').replace(',', '.'));
+    } else if (key.includes('dormitório') || key.includes('suíte') || key.includes('suite')) {
+      result.bedrooms = parseInt(val);
+      if (key.includes('suíte') || key.includes('suite')) result.suites = parseInt(val);
+    } else if (key.includes('banheiro')) {
+      result.bathrooms = parseInt(val);
+    } else if (key.includes('garagem') || key.includes('garagens') || key.includes('vaga')) {
+      result.garages = parseInt(val);
+    } else if (key.includes('iptu')) {
+      const num = val.match(/([\d.,]+)/);
+      if (num) result.iptu = parseMoneyValue(num[1]);
+    } else if (key.includes('tipo de imóvel') || key.includes('tipo de imovel')) {
+      result.propertyTypeRaw = val;
+    } else if (key.includes('situação') || key.includes('situacao')) {
+      result.listingStatus = val;
+    } else if (key.includes('propriedade')) {
+      result.condominium = val;
+    }
+  }
+
+  // Also check "Visão Geral" section for dormitórios/garagens in different format:
+  // "- **3**\n- Dormitórios"
+  const overviewSection = md.match(/## Visão Geral\s*\n([\s\S]*?)(?=\n## |$)/i);
+  if (overviewSection) {
+    const ovText = overviewSection[1];
+    
+    if (!result.bedrooms) {
+      const bedMatch = ovText.match(/\*\*(\d+)\*\*\s*\n-?\s*Dormitórios/i);
+      if (bedMatch) result.bedrooms = parseInt(bedMatch[1]);
+    }
+    if (!result.garages) {
+      const garMatch = ovText.match(/\*\*(\d+)\*\*\s*\n-?\s*Garagens?/i);
+      if (garMatch) result.garages = parseInt(garMatch[1]);
+    }
+    if (!result.areaConstructed) {
+      const areaMatch = ovText.match(/\*\*([\d.,]+)\s*m[²2]\*\*\s*\n-?\s*Área Construída/i);
+      if (areaMatch) result.areaConstructed = parseFloat(areaMatch[1].replace(/\./g, '').replace(',', '.'));
+    }
+    if (!result.suites) {
+      const suiteMatch = ovText.match(/\*\*(\d+)\*\*\s*\n-?\s*Suítes?/i);
+      if (suiteMatch) {
+        result.suites = parseInt(suiteMatch[1]);
+        if (!result.bedrooms) result.bedrooms = result.suites;
+      }
+    }
+  }
+
+  return result;
+}
+
+function parseAreaFallback(md: string): number | null {
+  const match = md.match(/(\d+)\s*m[²2]/i);
+  return match ? parseFloat(match[1]) : null;
+}
+
+function parseBedrooms(md: string): number | null {
+  const match = md.match(/Camas[:\s]*(\d+)/i) ||
+                md.match(/(\d+)\s*(?:quartos?|suítes?|dormitórios?)/i);
+  return match ? parseInt(match[1]) : null;
+}
+
+function parseBathrooms(md: string): number | null {
+  const match = md.match(/(\d+)\s*banheiros?/i);
+  return match ? parseInt(match[1]) : null;
+}
+
+function parseGarages(md: string): number | null {
+  const match = md.match(/Garagens?[:\s]*(\d+)/i) ||
+                md.match(/(\d+)\s*(?:garagens?|vagas?)/i);
+  return match ? parseInt(match[1]) : null;
+}
+
+function parseListingStatus(md: string): string {
+  if (md.includes('À Venda') || md.includes('Comprar')) return 'À Venda';
+  if (md.includes('Alugar')) return 'Alugar';
+  return '';
+}
+
+// ===== PHOTOS PARSER =====
+// Capture ALL image URLs from wp-content/uploads, excluding avatars/logos
+function parsePhotos(md: string): string[] {
+  const photos: string[] = [];
+  const seen = new Set<string>();
+  
+  // Match all URLs from wp-content/uploads in the markdown
+  const urlRegex = /https?:\/\/lemosproperties\.com\.br\/wp-content\/uploads\/[^\s)\]"']+\.(?:jpg|jpeg|png|webp)/gi;
+  let match;
+  while ((match = urlRegex.exec(md)) !== null) {
+    let photoUrl = match[0];
+    
+    // Skip avatar/logo/screenshot images
+    if (photoUrl.includes('Captura-de-tela') || 
+        photoUrl.includes('avatar') || 
+        photoUrl.includes('logo') ||
+        photoUrl.includes('traco-') ||
+        photoUrl.includes('Perfil')) continue;
+    
+    // Normalize: get base URL without size suffix (e.g., -1079x785)
+    const baseUrl = photoUrl.replace(/-\d+x\d+(\.\w+)$/, '$1');
+    
+    // Use base URL as key to deduplicate, but keep the original (possibly higher res)
+    if (!seen.has(baseUrl)) {
+      seen.add(baseUrl);
+      // Prefer the version without size suffix (full resolution)
+      photos.push(baseUrl);
+    }
+  }
+  
+  return photos;
+}
+
+// ===== FEATURES PARSER =====
+// Features are links: "[Feature Name](URL)"
+function parseFeatures(md: string): string[] {
+  const features: string[] = [];
+  const section = md.match(/## Destaques\s*\n([\s\S]*?)(?=\n## |$)/i);
+  if (!section) return features;
+  
+  const text = section[1];
+  
+  // Match links: [Feature Name](URL)
+  const linkRegex = /\[([^\]]+)\]\(https?:\/\/lemosproperties\.com\.br\/recurso\/[^\)]+\)/gi;
+  let match;
+  while ((match = linkRegex.exec(text)) !== null) {
+    const name = match[1].trim();
+    if (name && name.length < 60 && !name.startsWith('http')) {
+      features.push(name);
+    }
+  }
+  
+  // Fallback: simple list items
+  if (features.length === 0) {
+    const items = text.match(/-\s+(.+)/g);
+    if (items) {
+      items.forEach(item => {
+        const clean = item.replace(/^-\s+/, '').replace(/\[|\]\(.*?\)/g, '').trim();
+        if (clean && clean.length < 60) features.push(clean);
+      });
+    }
+  }
+  
+  return features;
+}
+
+// ===== DESCRIPTION PARSER =====
+function parseDescription(md: string, metadata: any): string {
+  const section = md.match(/## Descrição\s*\n([\s\S]*?)(?=\n## |$)/i);
+  if (!section) return metadata.description || '';
+  
+  let desc = section[1];
+  
+  // Remove "[Read More](URL)" link but keep content after it
+  desc = desc.replace(/\[Read More\]\([^\)]*\)\s*/gi, '');
+  
+  // Clean markdown links: keep text, remove URL
+  desc = desc.replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1');
+  
+  // Clean up excess whitespace
+  desc = desc.replace(/\n{3,}/g, '\n\n').trim();
+  
+  return desc || metadata.description || '';
+}
+
+// ===== LOCATION PARSER =====
+function parseLocation(md: string): {
+  address: string;
+  neighborhood: string;
+  city: string;
+  state: string;
+  zipCode: string;
+} {
+  const section = md.match(/## Localização\s*\n([\s\S]*?)(?=\n## |$)/i);
+  const text = section ? section[1] : md;
+
+  const getDetail = (key: string): string => {
+    const regex = new RegExp(`\\*\\*${key}:?\\*\\*\\s*(.+)`, 'i');
+    const match = text.match(regex);
+    return match ? match[1].trim() : '';
+  };
+
+  const address = getDetail('Localidade Aproximada') || '';
+  const city = getDetail('Cidade') || 'Barueri';
+  let state = getDetail('Estado\\/Municipio') || getDetail('Estado') || 'SP';
+  if (state.toLowerCase() === 'são paulo') state = 'SP';
+  const zipCode = getDetail('CEP \\/ Código Postal') || getDetail('CEP') || '';
+  const neighborhood = getDetail('Área') || 'Alphaville';
+
+  return {
+    address: address || neighborhood,
     neighborhood,
     city,
     state,
     zipCode,
-    condominium,
-    code,
   };
+}
+
+// ===== PROPERTY TYPE DETERMINER =====
+function determinePropertyType(title: string, url: string, typeRaw: string): string {
+  const text = (title + ' ' + url + ' ' + typeRaw).toLowerCase();
+  
+  if (text.includes('apartamento') || text.includes('flat') || text.includes('duplex') || 
+      text.includes('cobertura') || text.includes('studio')) return 'apartamento';
+  if (text.includes('casa') || text.includes('residência') || text.includes('residencia') || 
+      text.includes('sobrado') || text.includes('mansão') || text.includes('mansao')) return 'casa';
+  if (text.includes('terreno') || text.includes('lote')) return 'terreno';
+  if (text.includes('sala') || text.includes('comercial') || text.includes('corporativ') || 
+      text.includes('laje') || text.includes('escritório') || text.includes('escritorio')) return 'comercial';
+  if (text.includes('condomínio') || text.includes('condominio')) return 'apartamento';
+  
+  return 'outro';
 }
