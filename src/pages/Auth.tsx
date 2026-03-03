@@ -211,6 +211,30 @@ export default function Auth() {
                   Entrar
                 </Button>
 
+                <button
+                  type="button"
+                  className="w-full text-sm text-muted-foreground hover:text-primary transition-colors"
+                  onClick={async () => {
+                    const email = loginEmail.trim();
+                    if (!email) {
+                      toast({ variant: 'destructive', title: 'Informe seu email', description: 'Digite seu email no campo acima para recuperar a senha.' });
+                      return;
+                    }
+                    setLoading(true);
+                    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                      redirectTo: `${window.location.origin}/reset-password`,
+                    });
+                    setLoading(false);
+                    if (error) {
+                      toast({ variant: 'destructive', title: 'Erro', description: error.message });
+                    } else {
+                      toast({ title: 'Email enviado!', description: 'Verifique sua caixa de entrada para redefinir a senha.' });
+                    }
+                  }}
+                >
+                  Esqueci minha senha
+                </button>
+
                 <div className="relative my-4">
                   <Separator />
                   <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-card px-2 text-xs text-muted-foreground">
