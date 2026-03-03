@@ -236,7 +236,6 @@ export default function PropertyDetail() {
 
   const hasAccess = activeAgreement !== null;
   const isOwner = property?.owner_id === profile?.id;
-  const photos = property.public_photos?.filter(Boolean) ?? [];
 
   if (loading) {
     return (
@@ -252,6 +251,8 @@ export default function PropertyDetail() {
   }
 
   if (!property) return null;
+
+  const photos = property.public_photos?.filter(Boolean) ?? [];
 
   return (
     <Layout>
