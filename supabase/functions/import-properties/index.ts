@@ -50,11 +50,6 @@ serve(async (req) => {
     // Deduplicate
     const uniqueUrls = [...new Set(propertyUrls)];
     
-    // Filter only property URLs
-    const propertyUrls = (mapData.links || []).filter((url: string) => 
-      url.includes('/imovel/') && !url.includes('#') && !url.includes('?')
-    );
-    
     console.log(`Found ${uniqueUrls.length} property URLs`);
     return new Response(JSON.stringify({ success: true, urls: uniqueUrls, count: uniqueUrls.length }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
