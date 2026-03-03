@@ -131,38 +131,25 @@ serve(async (req) => {
         const addrMatch = md.match(/(?:Endereço|Rua|Avenida|Alameda|Estrada)[:\s]*([^\n]+)/i);
         const address = addrMatch ? addrMatch[1].trim() : neighborhood;
 
-        // Map property_type
-        const typeMap: Record<string, string> = {
-          'apartamento': 'apartamento', 'casa': 'casa', 'terreno': 'terreno',
-          'comercial': 'comercial', 'rural': 'rural', 'flat': 'apartamento',
-          'cobertura': 'apartamento', 'studio': 'apartamento', 'escritório': 'comercial',
-          'escritorios': 'comercial', 'salas': 'comercial', 'residência': 'casa',
-          'residencial': 'casa', 'prédio': 'comercial', 'corporativo': 'comercial',
-        };
-        
-        const rawType = (property.property_type || 'outro').toLowerCase();
-        const mappedType = typeMap[rawType] || 'outro';
-
         const { error: insertError } = await supabaseAdmin.from('properties').insert({
           owner_id: TARGET_USER_ID,
-          title: property.title.substring(0, 200),
-          description: property.description || null,
-          property_type: mappedType,
-          full_address: property.address || 'Alphaville',
-          neighborhood: property.neighborhood || 'Alphaville',
-          city: property.city || 'Barueri',
-          state: property.state || 'SP',
-          bedrooms: property.bedrooms || null,
-          bathrooms: property.bathrooms || null,
-          area_m2: property.area_m2 || null,
-          price_range_min: property.price || null,
-          price_range_max: property.price || null,
-          public_photos: property.photos || null,
-          features: property.features || null,
+          title: title.substring(0, 200),
+          description: description || null,
+          property_type: propType,
+          full_address: address,
+          neighborhood: neighborhood,
+          city: 'Barueri',
+          state: 'SP',
+          bedrooms: bedrooms,
+          bathrooms: bathrooms,
+          area_m2: area,
+          price_range_min: price,
+          price_range_max: price,
+          public_photos: photos.length > 0 ? photos : null,
           owner_name: 'Andy Lemos',
           owner_phone: '+55 (11) 9 5090-3006',
           is_active: true,
-          internal_notes: `Importado de: ${url}${property.code ? ` | Código: ${property.code}` : ''}${property.condominium ? ` | Condomínio: ${property.condominium}` : ''}`,
+          internal_notes: `Importado de: ${url}${code ? ` | Código: ${code}` : ''}`,
         });
 
         if (insertError) {
