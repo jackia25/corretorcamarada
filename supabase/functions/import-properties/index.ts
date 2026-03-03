@@ -68,40 +68,68 @@ serve(async (req) => {
           headers: { 'Authorization': `Bearer ${firecrawlKey}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({
             url,
-            formats: [{ type: 'json', schema: {
-              type: 'object',
-              properties: {
-                title: { type: 'string', description: 'Property title' },
-                description: { type: 'string', description: 'Full property description' },
-                price: { type: 'number', description: 'Price in BRL (number only, no currency symbol)' },
-                property_type: { type: 'string', description: 'Type: apartamento, casa, terreno, comercial, or outro' },
-                address: { type: 'string', description: 'Full address' },
-                neighborhood: { type: 'string', description: 'Neighborhood name' },
-                city: { type: 'string', description: 'City name' },
-                state: { type: 'string', description: 'State abbreviation (e.g. SP)' },
-                bedrooms: { type: 'number', description: 'Number of bedrooms' },
-                bathrooms: { type: 'number', description: 'Number of bathrooms' },
-                area_m2: { type: 'number', description: 'Area in square meters' },
-                garages: { type: 'number', description: 'Number of parking spots' },
-                photos: { type: 'array', items: { type: 'string' }, description: 'Array of photo URLs' },
-                features: { type: 'array', items: { type: 'string' }, description: 'Array of property features/amenities' },
-                condominium: { type: 'string', description: 'Condominium name if applicable' },
-                status: { type: 'string', description: 'Sale status: comprar (for sale) or alugar (for rent)' },
-                code: { type: 'string', description: 'Property code (e.g. 0076)' },
-              },
-              required: ['title']
-            }}],
+            formats: ['markdown', 'links'],
             onlyMainContent: true,
+            waitFor: 3000,
           }),
         });
         
         const scrapeData = await scrapeRes.json();
-        const property = scrapeData?.data?.json || scrapeData?.json;
+        const md = scrapeData?.data?.markdown || scrapeData?.markdown || '';
+        const metadata = scrapeData?.data?.metadata || scrapeData?.metadata || {};
         
-        if (!property || !property.title) {
-          results.errors.push(`No data extracted from ${url}`);
+        if (!md || md.length < 50) {
+          results.errors.push(`No content from ${url}`);
           continue;
         }
+
+        // Parse data from markdown
+        const title = metadata.title || extractBetween(md, '# ', '\n') || 'Imóvel sem título';
+        const description = metadata.description || extractSection(md, 'Descrição') || extractSection(md, 'Sobre') || '';
+        
+        // Extract price
+        const priceMatch = md.match(/R\$\s*([\d.,]+)/);
+        const price = priceMatch ? parseFloat(priceMatch[1].replace(/\./g, '').replace(',', '.')) : null;
+        
+        // Extract area
+        const areaMatch = md.match(/(\d+)\s*m[²2]/i);
+        const area = areaMatch ? parseFloat(areaMatch[1]) : null;
+        
+        // Extract bedrooms
+        const bedMatch = md.match(/(\d+)\s*(?:quartos?|dorm|suítes?|camas?)/i);
+        const bedrooms = bedMatch ? parseInt(bedMatch[1]) : null;
+        
+        // Extract bathrooms
+        const bathMatch = md.match(/(\d+)\s*(?:banheiros?|wc)/i);
+        const bathrooms = bathMatch ? parseInt(bathMatch[1]) : null;
+        
+        // Extract photos
+        const photoRegex = /!\[.*?\]\((https?:\/\/[^\s)]+\.(?:jpg|jpeg|png|webp)[^\s)]*)\)/gi;
+        const photos: string[] = [];
+        let photoMatch;
+        while ((photoMatch = photoRegex.exec(md)) !== null) {
+          if (!photos.includes(photoMatch[1])) photos.push(photoMatch[1]);
+        }
+        
+        // Determine property type from title/URL
+        const lowerTitle = (title + ' ' + url).toLowerCase();
+        let propType = 'outro';
+        if (lowerTitle.includes('apartamento') || lowerTitle.includes('flat') || lowerTitle.includes('duplex') || lowerTitle.includes('cobertura') || lowerTitle.includes('studio')) propType = 'apartamento';
+        else if (lowerTitle.includes('casa') || lowerTitle.includes('residencia') || lowerTitle.includes('residência') || lowerTitle.includes('mansao') || lowerTitle.includes('mansão') || lowerTitle.includes('sobrado')) propType = 'casa';
+        else if (lowerTitle.includes('terreno')) propType = 'terreno';
+        else if (lowerTitle.includes('sala') || lowerTitle.includes('comercial') || lowerTitle.includes('corporativ') || lowerTitle.includes('laje') || lowerTitle.includes('escritorio')) propType = 'comercial';
+        
+        // Extract neighborhood from content
+        const neighMatch = md.match(/(?:Condomínio|Bairro|Localização)[:\s]*([^\n,]+)/i);
+        const neighborhood = neighMatch ? neighMatch[1].trim() : 'Alphaville';
+        
+        // Extract code
+        const codeMatch = md.match(/[Cc]ódigo[:\s]*(\d+)/);
+        const code = codeMatch ? codeMatch[1] : '';
+
+        // Extract address
+        const addrMatch = md.match(/(?:Endereço|Rua|Avenida|Alameda|Estrada)[:\s]*([^\n]+)/i);
+        const address = addrMatch ? addrMatch[1].trim() : neighborhood;
 
         // Map property_type
         const typeMap: Record<string, string> = {
