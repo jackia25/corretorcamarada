@@ -185,8 +185,58 @@ export default function PropertyDetail() {
     return 'Consulte';
   };
 
+  const formatDescription = (text: string) => {
+    const sections = text
+      .split(/\n{2,}/)
+      .map((section) => section.trim())
+      .filter(Boolean);
+
+    const normalizeInline = (value: string) => value.replace(/\*\*(.*?)\*\*/g, '$1').trim();
+
+    return (
+      <div className="space-y-4">
+        {sections.map((section, sectionIndex) => {
+          const lines = section
+            .split('\n')
+            .map((line) => line.trim())
+            .filter(Boolean);
+
+          const bulletItems = lines
+            .filter((line) => line.startsWith('- '))
+            .map((line) => normalizeInline(line.replace(/^-\s*/, '')));
+
+          const titleLine = lines.find((line) => /^\*\*.+\*\*:?$/.test(line));
+          const title = titleLine ? normalizeInline(titleLine.replace(/:$/, '')) : null;
+
+          const paragraphLines = lines.filter((line) => !line.startsWith('- ') && line !== titleLine);
+          const paragraph = normalizeInline(paragraphLines.join(' '));
+
+          return (
+            <div key={`${sectionIndex}-${title ?? 'section'}`} className="rounded-lg border bg-muted/30 p-4 space-y-3">
+              {title && <h3 className="font-semibold text-base">{title}</h3>}
+
+              {paragraph && <p className="text-sm md:text-base leading-relaxed text-foreground/90">{paragraph}</p>}
+
+              {bulletItems.length > 0 && (
+                <ul className="space-y-2">
+                  {bulletItems.map((item, itemIndex) => (
+                    <li key={`${sectionIndex}-${itemIndex}`} className="flex items-start gap-2 text-sm md:text-base text-foreground/90">
+                      <span className="mt-2 h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   const hasAccess = activeAgreement !== null;
   const isOwner = property?.owner_id === profile?.id;
+  const photos = property.public_photos?.filter(Boolean) ?? [];
 
   if (loading) {
     return (
