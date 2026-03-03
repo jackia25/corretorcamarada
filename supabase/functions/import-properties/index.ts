@@ -153,9 +153,10 @@ serve(async (req) => {
         });
 
         if (insertError) {
-          results.errors.push(`Insert error for ${property.title}: ${insertError.message}`);
+          results.errors.push(`Insert error for ${title}: ${insertError.message}`);
         } else {
           results.imported++;
+          console.log(`Imported: ${title}`);
         }
       } catch (e) {
         results.errors.push(`Error processing ${url}: ${e.message}`);
@@ -171,3 +172,17 @@ serve(async (req) => {
     status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
   });
 });
+
+function extractBetween(text: string, start: string, end: string): string {
+  const startIdx = text.indexOf(start);
+  if (startIdx === -1) return '';
+  const afterStart = startIdx + start.length;
+  const endIdx = text.indexOf(end, afterStart);
+  return endIdx === -1 ? text.substring(afterStart) : text.substring(afterStart, endIdx);
+}
+
+function extractSection(text: string, heading: string): string {
+  const regex = new RegExp(`(?:#{1,3}\\s*)?${heading}[:\\s]*\\n([\\s\\S]*?)(?=\\n#{1,3}|$)`, 'i');
+  const match = text.match(regex);
+  return match ? match[1].trim().substring(0, 500) : '';
+}
