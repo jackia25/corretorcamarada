@@ -48,6 +48,7 @@ export function Header() {
     { href: '/properties', label: 'Imóveis', icon: Building2 },
     { href: '/demands', label: 'Demandas', icon: FileSearch },
     { href: '/agreements', label: 'Acordos', icon: Handshake },
+    { href: '/import', label: 'Importar', icon: Upload },
   ] : [];
 
   return (
