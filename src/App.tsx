@@ -21,6 +21,7 @@ import Agreements from "./pages/Agreements";
 import Logs from "./pages/Logs";
 import CrossingReports from "./pages/CrossingReports";
 import ImportProperties from "./pages/ImportProperties";
+import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
