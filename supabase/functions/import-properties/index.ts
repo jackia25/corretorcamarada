@@ -55,8 +55,8 @@ serve(async (req) => {
       url.includes('/imovel/') && !url.includes('#') && !url.includes('?')
     );
     
-    console.log(`Found ${propertyUrls.length} property URLs`);
-    return new Response(JSON.stringify({ success: true, urls: propertyUrls, count: propertyUrls.length }), {
+    console.log(`Found ${uniqueUrls.length} property URLs`);
+    return new Response(JSON.stringify({ success: true, urls: uniqueUrls, count: uniqueUrls.length }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
