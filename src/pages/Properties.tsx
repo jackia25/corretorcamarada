@@ -52,7 +52,6 @@ export default function Properties() {
           owner:profiles!properties_owner_id_fkey(id, full_name, creci, avatar_url)
         `)
         .eq('is_active', true)
-        .neq('owner_id', profile.id)
         .order('created_at', { ascending: false }),
       supabase
         .from('properties')
