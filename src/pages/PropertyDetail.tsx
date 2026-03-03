@@ -44,12 +44,19 @@ export default function PropertyDetail() {
   const [requestMessage, setRequestMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
 
   useEffect(() => {
     if (id && profile) {
       fetchProperty();
     }
   }, [id, profile]);
+
+  useEffect(() => {
+    if (property?.public_photos?.length) {
+      setSelectedPhoto(property.public_photos[0]);
+    }
+  }, [property?.id]);
 
   async function fetchProperty() {
     if (!id || !profile) return;
@@ -178,8 +185,58 @@ export default function PropertyDetail() {
     return 'Consulte';
   };
 
+  const formatDescription = (text: string) => {
+    const sections = text
+      .split(/\n{2,}/)
+      .map((section) => section.trim())
+      .filter(Boolean);
+
+    const normalizeInline = (value: string) => value.replace(/\*\*(.*?)\*\*/g, '$1').trim();
+
+    return (
+      <div className="space-y-4">
+        {sections.map((section, sectionIndex) => {
+          const lines = section
+            .split('\n')
+            .map((line) => line.trim())
+            .filter(Boolean);
+
+          const bulletItems = lines
+            .filter((line) => line.startsWith('- '))
+            .map((line) => normalizeInline(line.replace(/^-\s*/, '')));
+
+          const titleLine = lines.find((line) => /^\*\*.+\*\*:?$/.test(line));
+          const title = titleLine ? normalizeInline(titleLine.replace(/:$/, '')) : null;
+
+          const paragraphLines = lines.filter((line) => !line.startsWith('- ') && line !== titleLine);
+          const paragraph = normalizeInline(paragraphLines.join(' '));
+
+          return (
+            <div key={`${sectionIndex}-${title ?? 'section'}`} className="rounded-lg border bg-muted/30 p-4 space-y-3">
+              {title && <h3 className="font-semibold text-base">{title}</h3>}
+
+              {paragraph && <p className="text-sm md:text-base leading-relaxed text-foreground/90">{paragraph}</p>}
+
+              {bulletItems.length > 0 && (
+                <ul className="space-y-2">
+                  {bulletItems.map((item, itemIndex) => (
+                    <li key={`${sectionIndex}-${itemIndex}`} className="flex items-start gap-2 text-sm md:text-base text-foreground/90">
+                      <span className="mt-2 h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   const hasAccess = activeAgreement !== null;
   const isOwner = property?.owner_id === profile?.id;
+  const photos = property.public_photos?.filter(Boolean) ?? [];
 
   if (loading) {
     return (
@@ -209,22 +266,41 @@ export default function PropertyDetail() {
           animate={{ opacity: 1, y: 0 }}
           className="space-y-6"
         >
-          {/* Header Image */}
-          <div className="aspect-video bg-muted rounded-xl overflow-hidden relative">
-            {property.public_photos?.[0] ? (
-              <img 
-                src={property.public_photos[0]} 
-                alt={property.title}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center">
-                <Building2 className="h-24 w-24 text-muted-foreground/50" />
+          {/* Header Image + Gallery */}
+          <div className="space-y-3">
+            <div className="aspect-video bg-muted rounded-xl overflow-hidden relative">
+              {photos[0] ? (
+                <img
+                  src={selectedPhoto || photos[0]}
+                  alt={property.title}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <Building2 className="h-24 w-24 text-muted-foreground/50" />
+                </div>
+              )}
+              <Badge className="absolute top-4 left-4 text-base px-4 py-2">
+                {PROPERTY_TYPE_LABELS[property.property_type as PropertyType]}
+              </Badge>
+            </div>
+
+            {photos.length > 1 && (
+              <div className="grid grid-cols-4 md:grid-cols-6 gap-2">
+                {photos.map((photo, index) => (
+                  <button
+                    key={`${photo}-${index}`}
+                    type="button"
+                    onClick={() => setSelectedPhoto(photo)}
+                    className={`aspect-video overflow-hidden rounded-md border transition-all ${
+                      (selectedPhoto || photos[0]) === photo ? 'border-primary ring-1 ring-primary' : 'border-border'
+                    }`}
+                  >
+                    <img src={photo} alt={`${property.title} - foto ${index + 1}`} className="w-full h-full object-cover" />
+                  </button>
+                ))}
               </div>
             )}
-            <Badge className="absolute top-4 left-4 text-base px-4 py-2">
-              {PROPERTY_TYPE_LABELS[property.property_type as PropertyType]}
-            </Badge>
           </div>
 
           <div className="grid lg:grid-cols-3 gap-6">
@@ -264,9 +340,7 @@ export default function PropertyDetail() {
                   <CardHeader>
                     <CardTitle>Descrição</CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    <p className="whitespace-pre-wrap">{property.description}</p>
-                  </CardContent>
+                  <CardContent>{formatDescription(property.description)}</CardContent>
                 </Card>
               )}
 
