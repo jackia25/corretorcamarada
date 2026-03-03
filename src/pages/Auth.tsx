@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -210,6 +211,30 @@ export default function Auth() {
                   {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Entrar
                 </Button>
+
+                <button
+                  type="button"
+                  className="w-full text-sm text-muted-foreground hover:text-primary transition-colors"
+                  onClick={async () => {
+                    const email = loginEmail.trim();
+                    if (!email) {
+                      toast({ variant: 'destructive', title: 'Informe seu email', description: 'Digite seu email no campo acima para recuperar a senha.' });
+                      return;
+                    }
+                    setLoading(true);
+                    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                      redirectTo: `${window.location.origin}/reset-password`,
+                    });
+                    setLoading(false);
+                    if (error) {
+                      toast({ variant: 'destructive', title: 'Erro', description: error.message });
+                    } else {
+                      toast({ title: 'Email enviado!', description: 'Verifique sua caixa de entrada para redefinir a senha.' });
+                    }
+                  }}
+                >
+                  Esqueci minha senha
+                </button>
 
                 <div className="relative my-4">
                   <Separator />
