@@ -35,13 +35,20 @@ serve(async (req) => {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${firecrawlKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        url: 'https://lemosproperties.com.br/meus-imoveis/',
-        search: 'imovel',
-        limit: 500,
+        url: 'https://lemosproperties.com.br',
+        limit: 1000,
         includeSubdomains: false,
       }),
     });
     const mapData = await mapRes.json();
+    console.log('Map response links count:', (mapData.links || []).length);
+    
+    // Filter only property URLs
+    const propertyUrls = (mapData.links || []).filter((url: string) => 
+      url.includes('/imovel/')
+    );
+    // Deduplicate
+    const uniqueUrls = [...new Set(propertyUrls)];
     
     // Filter only property URLs
     const propertyUrls = (mapData.links || []).filter((url: string) => 
