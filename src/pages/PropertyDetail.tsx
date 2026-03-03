@@ -44,12 +44,19 @@ export default function PropertyDetail() {
   const [requestMessage, setRequestMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
 
   useEffect(() => {
     if (id && profile) {
       fetchProperty();
     }
   }, [id, profile]);
+
+  useEffect(() => {
+    if (property?.public_photos?.length) {
+      setSelectedPhoto(property.public_photos[0]);
+    }
+  }, [property?.id]);
 
   async function fetchProperty() {
     if (!id || !profile) return;
