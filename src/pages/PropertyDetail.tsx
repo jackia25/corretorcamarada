@@ -266,22 +266,41 @@ export default function PropertyDetail() {
           animate={{ opacity: 1, y: 0 }}
           className="space-y-6"
         >
-          {/* Header Image */}
-          <div className="aspect-video bg-muted rounded-xl overflow-hidden relative">
-            {property.public_photos?.[0] ? (
-              <img 
-                src={property.public_photos[0]} 
-                alt={property.title}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center">
-                <Building2 className="h-24 w-24 text-muted-foreground/50" />
+          {/* Header Image + Gallery */}
+          <div className="space-y-3">
+            <div className="aspect-video bg-muted rounded-xl overflow-hidden relative">
+              {photos[0] ? (
+                <img
+                  src={selectedPhoto || photos[0]}
+                  alt={property.title}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <Building2 className="h-24 w-24 text-muted-foreground/50" />
+                </div>
+              )}
+              <Badge className="absolute top-4 left-4 text-base px-4 py-2">
+                {PROPERTY_TYPE_LABELS[property.property_type as PropertyType]}
+              </Badge>
+            </div>
+
+            {photos.length > 1 && (
+              <div className="grid grid-cols-4 md:grid-cols-6 gap-2">
+                {photos.map((photo, index) => (
+                  <button
+                    key={`${photo}-${index}`}
+                    type="button"
+                    onClick={() => setSelectedPhoto(photo)}
+                    className={`aspect-video overflow-hidden rounded-md border transition-all ${
+                      (selectedPhoto || photos[0]) === photo ? 'border-primary ring-1 ring-primary' : 'border-border'
+                    }`}
+                  >
+                    <img src={photo} alt={`${property.title} - foto ${index + 1}`} className="w-full h-full object-cover" />
+                  </button>
+                ))}
               </div>
             )}
-            <Badge className="absolute top-4 left-4 text-base px-4 py-2">
-              {PROPERTY_TYPE_LABELS[property.property_type as PropertyType]}
-            </Badge>
           </div>
 
           <div className="grid lg:grid-cols-3 gap-6">
