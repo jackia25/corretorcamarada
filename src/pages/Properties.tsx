@@ -91,7 +91,7 @@ export default function Properties() {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
     >
-      <Link to={isOwner ? `/properties/${property.id}/edit` : `/properties/${property.id}`}>
+      <Link to={`/properties/${property.id}`}>
         <Card className="card-interactive h-full overflow-hidden">
           <div className="aspect-video bg-muted relative">
             {property.public_photos?.[0] ? (
