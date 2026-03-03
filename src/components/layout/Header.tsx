@@ -18,7 +18,8 @@ import {
   Home,
   FileSearch,
   Handshake,
-  ClipboardList
+  ClipboardList,
+  Upload
 } from 'lucide-react';
 import { useState } from 'react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -47,6 +48,7 @@ export function Header() {
     { href: '/properties', label: 'Imóveis', icon: Building2 },
     { href: '/demands', label: 'Demandas', icon: FileSearch },
     { href: '/agreements', label: 'Acordos', icon: Handshake },
+    { href: '/import', label: 'Importar', icon: Upload },
   ] : [];
 
   return (
