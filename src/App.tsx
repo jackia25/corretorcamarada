@@ -21,6 +21,7 @@ import Agreements from "./pages/Agreements";
 import Logs from "./pages/Logs";
 import CrossingReports from "./pages/CrossingReports";
 import ImportProperties from "./pages/ImportProperties";
+import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -50,6 +51,7 @@ const App = () => (
             <Route path="/reports" element={<ProtectedRoute><CrossingReports /></ProtectedRoute>} />
             <Route path="/logs" element={<ProtectedRoute><Logs /></ProtectedRoute>} />
             <Route path="/import" element={<ProtectedRoute><ImportProperties /></ProtectedRoute>} />
+            <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
             
             <Route path="*" element={<NotFound />} />
           </Routes>
