@@ -26,7 +26,8 @@ import {
   CheckCircle2,
   Clock,
   Loader2,
-  FileText
+  FileText,
+  Pencil
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Property, AccessRequest, CooperationAgreement, PROPERTY_TYPE_LABELS, PropertyType } from '@/lib/types';
@@ -257,10 +258,18 @@ export default function PropertyDetail() {
   return (
     <Layout>
       <div className="container py-8 max-w-4xl">
-        <Button variant="ghost" className="mb-4 gap-2" onClick={() => navigate('/properties')}>
-          <ArrowLeft className="h-4 w-4" />
-          Voltar
-        </Button>
+        <div className="flex items-center justify-between mb-4">
+          <Button variant="ghost" className="gap-2" onClick={() => navigate('/properties')}>
+            <ArrowLeft className="h-4 w-4" />
+            Voltar
+          </Button>
+          {isOwner && (
+            <Button variant="outline" className="gap-2" onClick={() => navigate(`/properties/${id}/edit`)}>
+              <Pencil className="h-4 w-4" />
+              Editar Imóvel
+            </Button>
+          )}
+        </div>
 
         <motion.div
           initial={{ opacity: 0, y: 20 }}
