@@ -215,6 +215,10 @@ async function reconcileExistingProperties({
     query = query.in('id', propertyIds);
   }
 
+  if (typeof limit === 'number') {
+    query = query.range(offset, offset + Math.max(0, limit - 1));
+  }
+
   const { data: properties, error: listError } = await query;
   if (listError) {
     return {
