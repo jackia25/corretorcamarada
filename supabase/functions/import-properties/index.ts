@@ -27,7 +27,7 @@ serve(async (req) => {
   );
 
   const body = await req.json();
-  const { action, urls, dryRun = false, limit, offset = 0 } = body || {};
+  const { action, urls, propertyIds, dryRun = false, limit, offset = 0 } = body || {};
 
   // Step 1: Map all property URLs
   if (action === 'map') {
