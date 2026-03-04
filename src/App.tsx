@@ -14,6 +14,7 @@ import Dashboard from "./pages/Dashboard";
 import Properties from "./pages/Properties";
 import NewProperty from "./pages/NewProperty";
 import PropertyDetail from "./pages/PropertyDetail";
+import EditProperty from "./pages/EditProperty";
 import Demands from "./pages/Demands";
 import NewDemand from "./pages/NewDemand";
 import Requests from "./pages/Requests";
