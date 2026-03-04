@@ -208,7 +208,7 @@ async function reconcileExistingProperties({
 }) {
   let query = supabaseAdmin
     .from('properties')
-    .select('id,title,internal_notes,public_photos')
+    .select('id,title,internal_notes,public_photos,description,property_type,full_address,neighborhood,city,state,zip_code,bedrooms,bathrooms,area_m2,price_range_min,price_range_max,features')
     .eq('owner_id', TARGET_USER_ID)
     .order('created_at', { ascending: true });
 
