@@ -255,20 +255,40 @@ async function reconcileExistingProperties({
       compared++;
       const sourcePhotoCount = parsed.photos.length;
       const destinationPhotoCount = (property.public_photos || []).length;
-      const needsUpdate = sourcePhotoCount !== destinationPhotoCount;
+      const payload = buildPropertyPayload(parsed, sourceUrl);
 
-      if (sample.length < 30 && sourcePhotoCount !== destinationPhotoCount) {
+      const hasDataDiff =
+        property.title !== payload.title ||
+        (property.description || null) !== payload.description ||
+        property.property_type !== payload.property_type ||
+        property.full_address !== payload.full_address ||
+        property.neighborhood !== payload.neighborhood ||
+        property.city !== payload.city ||
+        property.state !== payload.state ||
+        (property.zip_code || null) !== payload.zip_code ||
+        (property.bedrooms || null) !== payload.bedrooms ||
+        (property.bathrooms || null) !== payload.bathrooms ||
+        (property.area_m2 || null) !== payload.area_m2 ||
+        (property.price_range_min || null) !== payload.price_range_min ||
+        (property.price_range_max || null) !== payload.price_range_max ||
+        JSON.stringify(property.features || []) !== JSON.stringify(payload.features || []);
+
+      const hasPhotoDiff = sourcePhotoCount !== destinationPhotoCount;
+      const needsUpdate = hasPhotoDiff || hasDataDiff;
+
+      if (sample.length < 30 && needsUpdate) {
         sample.push({
           id: property.id,
           title: property.title,
           source_url: sourceUrl,
           source_photos: sourcePhotoCount,
           destination_photos: destinationPhotoCount,
+          has_photo_diff: hasPhotoDiff,
+          has_data_diff: hasDataDiff,
         });
       }
 
       if (needsUpdate && !dryRun) {
-        const payload = buildPropertyPayload(parsed, sourceUrl);
         const { error } = await supabaseAdmin
           .from('properties')
           .update(payload)
