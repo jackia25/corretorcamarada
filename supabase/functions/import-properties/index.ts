@@ -44,7 +44,7 @@ serve(async (req) => {
     const mapData = await mapRes.json();
 
     const propertyUrls = (mapData.links || []).filter((url: string) =>
-      url.includes('/imovel/')
+      url.includes('/imovel/') && !url.includes('/imovel/page/')
     );
     const uniqueUrls = [...new Set(propertyUrls)];
 
