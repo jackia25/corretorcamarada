@@ -26,7 +26,8 @@ serve(async (req) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
   );
 
-  const { action, urls } = await req.json();
+  const body = await req.json();
+  const { action, urls, propertyIds, dryRun = false, limit, offset = 0 } = body || {};
 
   // Step 1: Map all property URLs
   if (action === 'map') {
@@ -41,77 +42,37 @@ serve(async (req) => {
       }),
     });
     const mapData = await mapRes.json();
-    
-    const propertyUrls = (mapData.links || []).filter((url: string) => 
-      url.includes('/imovel/')
+
+    const propertyUrls = (mapData.links || []).filter((url: string) =>
+      url.includes('/imovel/') && !url.includes('/imovel/page/')
     );
     const uniqueUrls = [...new Set(propertyUrls)];
-    
+
     console.log(`Found ${uniqueUrls.length} property URLs`);
     return new Response(JSON.stringify({ success: true, urls: uniqueUrls, count: uniqueUrls.length }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
 
-  // Step 2: Scrape and import a batch of properties
+  // Step 2: Scrape and import/update a batch of properties
   if (action === 'import') {
-    const results = { imported: 0, errors: [] as string[] };
-    
+    const results = { imported: 0, updated: 0, errors: [] as string[] };
+
     for (const url of (urls || [])) {
       try {
-        console.log(`Scraping: ${url}`);
-        const scrapeRes = await fetch(`${FIRECRAWL_API}/scrape`, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${firecrawlKey}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            url,
-            formats: ['markdown'],
-            onlyMainContent: true,
-            waitFor: 3000,
-          }),
-        });
-        
-        const scrapeData = await scrapeRes.json();
-        const md = scrapeData?.data?.markdown || scrapeData?.markdown || '';
-        const metadata = scrapeData?.data?.metadata || scrapeData?.metadata || {};
-        
-        if (!md || md.length < 50) {
+        const parsed = await scrapeAndParseProperty(url, firecrawlKey);
+        if (!parsed) {
           results.errors.push(`No content from ${url}`);
           continue;
         }
 
-        const parsed = parsePropertyMarkdown(md, metadata, url);
-        
-        console.log(`Parsed: ${parsed.title} | ${parsed.city} | R$${parsed.price} | ${parsed.area}m² | ${parsed.bedrooms}q | ${parsed.photos.length} fotos`);
-
-        const { error: insertError } = await supabaseAdmin.from('properties').insert({
-          owner_id: TARGET_USER_ID,
-          title: parsed.title.substring(0, 200),
-          description: parsed.description || null,
-          property_type: parsed.propertyType,
-          full_address: parsed.address,
-          neighborhood: parsed.neighborhood,
-          city: parsed.city,
-          state: parsed.state,
-          zip_code: parsed.zipCode || null,
-          bedrooms: parsed.bedrooms,
-          bathrooms: parsed.bathrooms,
-          area_m2: parsed.area,
-          price_range_min: parsed.price,
-          price_range_max: parsed.price,
-          public_photos: parsed.photos.length > 0 ? parsed.photos : null,
-          features: parsed.features.length > 0 ? parsed.features : null,
-          owner_name: 'Andy Lemos',
-          owner_phone: '+55 (11) 9 5090-3006',
-          is_active: true,
-          internal_notes: buildInternalNotes(parsed, url),
-        });
-
-        if (insertError) {
-          results.errors.push(`Insert error for ${parsed.title}: ${insertError.message}`);
+        const upsert = await upsertPropertyBySourceUrl(supabaseAdmin, parsed, url);
+        if (upsert.error) {
+          results.errors.push(`Upsert error for ${parsed.title}: ${upsert.error}`);
         } else {
-          results.imported++;
-          console.log(`Imported: ${parsed.title}`);
+          if (upsert.mode === 'insert') results.imported++;
+          if (upsert.mode === 'update') results.updated++;
+          console.log(`${upsert.mode === 'insert' ? 'Imported' : 'Updated'}: ${parsed.title}`);
         }
       } catch (e) {
         results.errors.push(`Error processing ${url}: ${e.message}`);
@@ -123,10 +84,242 @@ serve(async (req) => {
     });
   }
 
-  return new Response(JSON.stringify({ error: 'Invalid action. Use "map" or "import"' }), {
+  // Step 3: Reconcile existing destination records against source URLs
+  if (action === 'reconcile') {
+    const reconciliation = await reconcileExistingProperties({
+      supabaseAdmin,
+      firecrawlKey,
+      dryRun,
+      limit: typeof limit === 'number' ? limit : undefined,
+      offset: typeof offset === 'number' ? offset : 0,
+      propertyIds: Array.isArray(propertyIds) ? propertyIds : undefined,
+    });
+
+    return new Response(JSON.stringify({ success: true, ...reconciliation }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
+
+  return new Response(JSON.stringify({ error: 'Invalid action. Use "map", "import" or "reconcile"' }), {
     status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
   });
 });
+
+async function scrapeAndParseProperty(url: string, firecrawlKey: string): Promise<ParsedProperty | null> {
+  console.log(`Scraping: ${url}`);
+
+  const scrapeRes = await fetch(`${FIRECRAWL_API}/scrape`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${firecrawlKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      url,
+      formats: ['markdown', 'html'],
+      onlyMainContent: true,
+      waitFor: 3000,
+    }),
+  });
+
+  const scrapeData = await scrapeRes.json();
+  const md = scrapeData?.data?.markdown || scrapeData?.markdown || '';
+  const html = scrapeData?.data?.html || scrapeData?.html || '';
+  const metadata = scrapeData?.data?.metadata || scrapeData?.metadata || {};
+
+  if (!md || md.length < 50) return null;
+
+  const parsed = parsePropertyMarkdown(md, metadata, url);
+  if (parsed.photos.length === 0 && html) {
+    parsed.photos = parsePhotosFromHtml(html);
+  }
+
+  console.log(`Parsed: ${parsed.title} | ${parsed.city} | R$${parsed.price} | ${parsed.area}m² | ${parsed.bedrooms}q | ${parsed.photos.length} fotos`);
+  return parsed;
+}
+
+function buildPropertyPayload(parsed: ParsedProperty, url: string) {
+  return {
+    owner_id: TARGET_USER_ID,
+    title: parsed.title.substring(0, 200),
+    description: parsed.description || null,
+    property_type: parsed.propertyType,
+    full_address: parsed.address,
+    neighborhood: parsed.neighborhood,
+    city: parsed.city,
+    state: parsed.state,
+    zip_code: parsed.zipCode || null,
+    bedrooms: parsed.bedrooms,
+    bathrooms: parsed.bathrooms,
+    area_m2: parsed.area,
+    price_range_min: parsed.price,
+    price_range_max: parsed.price,
+    public_photos: parsed.photos.length > 0 ? parsed.photos : null,
+    features: parsed.features.length > 0 ? parsed.features : null,
+    owner_name: 'Andy Lemos',
+    owner_phone: '+55 (11) 9 5090-3006',
+    is_active: true,
+    internal_notes: buildInternalNotes(parsed, url),
+  };
+}
+
+function extractSourceUrl(internalNotes: string | null): string | null {
+  if (!internalNotes) return null;
+  const match = internalNotes.match(/Importado de:\s*(https?:\/\/[^\s|]+)/i);
+  return match?.[1] || null;
+}
+
+async function upsertPropertyBySourceUrl(supabaseAdmin: any, parsed: ParsedProperty, sourceUrl: string): Promise<{ mode: 'insert' | 'update'; error: string | null }> {
+  const payload = buildPropertyPayload(parsed, sourceUrl);
+
+  const { data: existing, error: findError } = await supabaseAdmin
+    .from('properties')
+    .select('id')
+    .eq('owner_id', TARGET_USER_ID)
+    .ilike('internal_notes', `Importado de: ${sourceUrl}%`)
+    .maybeSingle();
+
+  if (findError) return { mode: 'insert', error: findError.message };
+
+  if (existing?.id) {
+    const { error } = await supabaseAdmin
+      .from('properties')
+      .update(payload)
+      .eq('id', existing.id);
+
+    return { mode: 'update', error: error ? error.message : null };
+  }
+
+  const { error } = await supabaseAdmin.from('properties').insert(payload);
+  return { mode: 'insert', error: error ? error.message : null };
+}
+
+async function reconcileExistingProperties({
+  supabaseAdmin,
+  firecrawlKey,
+  dryRun,
+  limit,
+  offset,
+  propertyIds,
+}: {
+  supabaseAdmin: any;
+  firecrawlKey: string;
+  dryRun: boolean;
+  limit?: number;
+  offset: number;
+  propertyIds?: string[];
+}) {
+  let query = supabaseAdmin
+    .from('properties')
+    .select('id,title,internal_notes,public_photos,description,property_type,full_address,neighborhood,city,state,zip_code,bedrooms,bathrooms,area_m2,price_range_min,price_range_max,features')
+    .eq('owner_id', TARGET_USER_ID)
+    .order('created_at', { ascending: true });
+
+  if (Array.isArray(propertyIds) && propertyIds.length > 0) {
+    query = query.in('id', propertyIds);
+  }
+
+  if (typeof limit === 'number') {
+    query = query.range(offset, offset + Math.max(0, limit - 1));
+  }
+
+  const { data: properties, error: listError } = await query;
+  if (listError) {
+    return {
+      total: 0,
+      compared: 0,
+      updated: 0,
+      photo_fixed: 0,
+      dry_run: dryRun,
+      errors: [listError.message],
+    };
+  }
+
+  const errors: string[] = [];
+  const sample: Array<Record<string, unknown>> = [];
+  let compared = 0;
+  let updated = 0;
+  let photoFixed = 0;
+
+  for (const property of properties || []) {
+    const sourceUrl = extractSourceUrl(property.internal_notes);
+    if (!sourceUrl) {
+      errors.push(`Sem URL de origem para: ${property.title}`);
+      continue;
+    }
+
+    try {
+      const parsed = await scrapeAndParseProperty(sourceUrl, firecrawlKey);
+      if (!parsed) {
+        errors.push(`Sem conteúdo na origem: ${sourceUrl}`);
+        continue;
+      }
+
+      compared++;
+      const sourcePhotoCount = parsed.photos.length;
+      const destinationPhotoCount = (property.public_photos || []).length;
+      const payload = buildPropertyPayload(parsed, sourceUrl);
+
+      const hasDataDiff =
+        property.title !== payload.title ||
+        (property.description || null) !== payload.description ||
+        property.property_type !== payload.property_type ||
+        property.full_address !== payload.full_address ||
+        property.neighborhood !== payload.neighborhood ||
+        property.city !== payload.city ||
+        property.state !== payload.state ||
+        (property.zip_code || null) !== payload.zip_code ||
+        (property.bedrooms || null) !== payload.bedrooms ||
+        (property.bathrooms || null) !== payload.bathrooms ||
+        (property.area_m2 || null) !== payload.area_m2 ||
+        (property.price_range_min || null) !== payload.price_range_min ||
+        (property.price_range_max || null) !== payload.price_range_max ||
+        JSON.stringify(property.features || []) !== JSON.stringify(payload.features || []);
+
+      const hasPhotoDiff = sourcePhotoCount !== destinationPhotoCount;
+      const needsUpdate = hasPhotoDiff || hasDataDiff;
+
+      if (sample.length < 30 && needsUpdate) {
+        sample.push({
+          id: property.id,
+          title: property.title,
+          source_url: sourceUrl,
+          source_photos: sourcePhotoCount,
+          destination_photos: destinationPhotoCount,
+          has_photo_diff: hasPhotoDiff,
+          has_data_diff: hasDataDiff,
+        });
+      }
+
+      if (needsUpdate && !dryRun) {
+        const { error } = await supabaseAdmin
+          .from('properties')
+          .update(payload)
+          .eq('id', property.id);
+
+        if (error) {
+          errors.push(`Erro ao atualizar ${property.title}: ${error.message}`);
+        } else {
+          updated++;
+          if (destinationPhotoCount === 0 && sourcePhotoCount > 0) photoFixed++;
+        }
+      }
+
+      if (needsUpdate && dryRun) {
+        if (destinationPhotoCount === 0 && sourcePhotoCount > 0) photoFixed++;
+      }
+    } catch (e) {
+      errors.push(`Erro na comparação ${property.title}: ${e.message}`);
+    }
+  }
+
+  return {
+    total: (properties || []).length,
+    compared,
+    updated,
+    photo_fixed: photoFixed,
+    dry_run: dryRun,
+    mismatches_sample: sample,
+    errors,
+  };
+}
 
 // ===== BUILD INTERNAL NOTES =====
 function buildInternalNotes(parsed: ParsedProperty, url: string): string {
@@ -380,30 +573,46 @@ function parsePhotos(md: string): string[] {
   const seen = new Set<string>();
   
   // Match all URLs from wp-content/uploads in the markdown
-  const urlRegex = /https?:\/\/lemosproperties\.com\.br\/wp-content\/uploads\/[^\s)\]"']+\.(?:jpg|jpeg|png|webp)/gi;
+  const urlRegex = /https?:\/\/lemosproperties\.com\.br\/wp-content\/uploads\/[^\s)\]"']+\.(?:jpg|jpeg|png|webp|avif)/gi;
   let match;
   while ((match = urlRegex.exec(md)) !== null) {
-    let photoUrl = match[0];
-    
-    // Skip avatar/logo/screenshot images
-    if (photoUrl.includes('Captura-de-tela') || 
-        photoUrl.includes('avatar') || 
-        photoUrl.includes('logo') ||
-        photoUrl.includes('traco-') ||
-        photoUrl.includes('Perfil')) continue;
-    
-    // Normalize: get base URL without size suffix (e.g., -1079x785)
-    const baseUrl = photoUrl.replace(/-\d+x\d+(\.\w+)$/, '$1');
-    
-    // Use base URL as key to deduplicate, but keep the original (possibly higher res)
-    if (!seen.has(baseUrl)) {
-      seen.add(baseUrl);
-      // Prefer the version without size suffix (full resolution)
-      photos.push(baseUrl);
-    }
+    const photoUrl = normalizePhotoUrl(match[0]);
+    if (!photoUrl || seen.has(photoUrl)) continue;
+
+    seen.add(photoUrl);
+    photos.push(photoUrl);
   }
   
   return photos;
+}
+
+function parsePhotosFromHtml(html: string): string[] {
+  const photos: string[] = [];
+  const seen = new Set<string>();
+
+  const urlRegex = /https?:\/\/lemosproperties\.com\.br\/wp-content\/uploads\/[^"'\s>]+\.(?:jpg|jpeg|png|webp|avif)/gi;
+  let match;
+  while ((match = urlRegex.exec(html)) !== null) {
+    const photoUrl = normalizePhotoUrl(match[0]);
+    if (!photoUrl || seen.has(photoUrl)) continue;
+
+    seen.add(photoUrl);
+    photos.push(photoUrl);
+  }
+
+  return photos;
+}
+
+function normalizePhotoUrl(rawUrl: string): string | null {
+  if (!rawUrl) return null;
+
+  if (rawUrl.includes('Captura-de-tela') ||
+      rawUrl.includes('avatar') ||
+      rawUrl.includes('logo') ||
+      rawUrl.includes('traco-') ||
+      rawUrl.includes('Perfil')) return null;
+
+  return rawUrl.replace(/-\d+x\d+(\.\w+)$/, '$1');
 }
 
 // ===== FEATURES PARSER =====
