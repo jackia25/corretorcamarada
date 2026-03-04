@@ -546,7 +546,7 @@ function parsePhotos(md: string): string[] {
   const seen = new Set<string>();
   
   // Match all URLs from wp-content/uploads in the markdown
-  const urlRegex = /https?:\/\/lemosproperties\.com\.br\/wp-content\/uploads\/[^\s)\]"']+\.(?:jpg|jpeg|png|webp)/gi;
+  const urlRegex = /https?:\/\/lemosproperties\.com\.br\/wp-content\/uploads\/[^\s)\]"']+\.(?:jpg|jpeg|png|webp|avif)/gi;
   let match;
   while ((match = urlRegex.exec(md)) !== null) {
     const photoUrl = normalizePhotoUrl(match[0]);
