@@ -1,0 +1,1 @@
+UPDATE properties SET description = REPLACE(REPLACE(description, '**', ''), '*', '') WHERE description LIKE '%*%';
