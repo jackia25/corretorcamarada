@@ -44,7 +44,7 @@ const App = () => (
             <Route path="/properties" element={<ProtectedRoute><Properties /></ProtectedRoute>} />
             <Route path="/properties/new" element={<ProtectedRoute><NewProperty /></ProtectedRoute>} />
             <Route path="/properties/:id" element={<ProtectedRoute><PropertyDetail /></ProtectedRoute>} />
-            <Route path="/properties/:id/edit" element={<ProtectedRoute><PropertyDetail /></ProtectedRoute>} />
+            <Route path="/properties/:id/edit" element={<ProtectedRoute><EditProperty /></ProtectedRoute>} />
             <Route path="/demands" element={<ProtectedRoute><Demands /></ProtectedRoute>} />
             <Route path="/demands/new" element={<ProtectedRoute><NewDemand /></ProtectedRoute>} />
             <Route path="/requests" element={<ProtectedRoute><Requests /></ProtectedRoute>} />
