@@ -112,7 +112,7 @@ async function scrapeAndParseProperty(url: string, firecrawlKey: string): Promis
     headers: { 'Authorization': `Bearer ${firecrawlKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       url,
-      formats: ['markdown'],
+      formats: ['markdown', 'html'],
       onlyMainContent: true,
       waitFor: 3000,
     }),
@@ -120,11 +120,16 @@ async function scrapeAndParseProperty(url: string, firecrawlKey: string): Promis
 
   const scrapeData = await scrapeRes.json();
   const md = scrapeData?.data?.markdown || scrapeData?.markdown || '';
+  const html = scrapeData?.data?.html || scrapeData?.html || '';
   const metadata = scrapeData?.data?.metadata || scrapeData?.metadata || {};
 
   if (!md || md.length < 50) return null;
 
   const parsed = parsePropertyMarkdown(md, metadata, url);
+  if (parsed.photos.length === 0 && html) {
+    parsed.photos = parsePhotosFromHtml(html);
+  }
+
   console.log(`Parsed: ${parsed.title} | ${parsed.city} | R$${parsed.price} | ${parsed.area}m² | ${parsed.bedrooms}q | ${parsed.photos.length} fotos`);
   return parsed;
 }
