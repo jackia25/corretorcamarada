@@ -563,7 +563,7 @@ function parsePhotosFromHtml(html: string): string[] {
   const photos: string[] = [];
   const seen = new Set<string>();
 
-  const urlRegex = /https?:\/\/lemosproperties\.com\.br\/wp-content\/uploads\/[^"'\s>]+\.(?:jpg|jpeg|png|webp)/gi;
+  const urlRegex = /https?:\/\/lemosproperties\.com\.br\/wp-content\/uploads\/[^"'\s>]+\.(?:jpg|jpeg|png|webp|avif)/gi;
   let match;
   while ((match = urlRegex.exec(html)) !== null) {
     const photoUrl = normalizePhotoUrl(match[0]);
