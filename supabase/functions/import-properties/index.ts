@@ -549,27 +549,43 @@ function parsePhotos(md: string): string[] {
   const urlRegex = /https?:\/\/lemosproperties\.com\.br\/wp-content\/uploads\/[^\s)\]"']+\.(?:jpg|jpeg|png|webp)/gi;
   let match;
   while ((match = urlRegex.exec(md)) !== null) {
-    let photoUrl = match[0];
-    
-    // Skip avatar/logo/screenshot images
-    if (photoUrl.includes('Captura-de-tela') || 
-        photoUrl.includes('avatar') || 
-        photoUrl.includes('logo') ||
-        photoUrl.includes('traco-') ||
-        photoUrl.includes('Perfil')) continue;
-    
-    // Normalize: get base URL without size suffix (e.g., -1079x785)
-    const baseUrl = photoUrl.replace(/-\d+x\d+(\.\w+)$/, '$1');
-    
-    // Use base URL as key to deduplicate, but keep the original (possibly higher res)
-    if (!seen.has(baseUrl)) {
-      seen.add(baseUrl);
-      // Prefer the version without size suffix (full resolution)
-      photos.push(baseUrl);
-    }
+    const photoUrl = normalizePhotoUrl(match[0]);
+    if (!photoUrl || seen.has(photoUrl)) continue;
+
+    seen.add(photoUrl);
+    photos.push(photoUrl);
   }
   
   return photos;
+}
+
+function parsePhotosFromHtml(html: string): string[] {
+  const photos: string[] = [];
+  const seen = new Set<string>();
+
+  const urlRegex = /https?:\/\/lemosproperties\.com\.br\/wp-content\/uploads\/[^"'\s>]+\.(?:jpg|jpeg|png|webp)/gi;
+  let match;
+  while ((match = urlRegex.exec(html)) !== null) {
+    const photoUrl = normalizePhotoUrl(match[0]);
+    if (!photoUrl || seen.has(photoUrl)) continue;
+
+    seen.add(photoUrl);
+    photos.push(photoUrl);
+  }
+
+  return photos;
+}
+
+function normalizePhotoUrl(rawUrl: string): string | null {
+  if (!rawUrl) return null;
+
+  if (rawUrl.includes('Captura-de-tela') ||
+      rawUrl.includes('avatar') ||
+      rawUrl.includes('logo') ||
+      rawUrl.includes('traco-') ||
+      rawUrl.includes('Perfil')) return null;
+
+  return rawUrl.replace(/-\d+x\d+(\.\w+)$/, '$1');
 }
 
 // ===== FEATURES PARSER =====
