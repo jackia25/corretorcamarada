@@ -196,12 +196,14 @@ async function reconcileExistingProperties({
   dryRun,
   limit,
   offset,
+  propertyIds,
 }: {
   supabaseAdmin: any;
   firecrawlKey: string;
   dryRun: boolean;
   limit?: number;
   offset: number;
+  propertyIds?: string[];
 }) {
   let query = supabaseAdmin
     .from('properties')
@@ -209,8 +211,8 @@ async function reconcileExistingProperties({
     .eq('owner_id', TARGET_USER_ID)
     .order('created_at', { ascending: true });
 
-  if (typeof limit === 'number') {
-    query = query.range(offset, offset + Math.max(0, limit - 1));
+  if (Array.isArray(propertyIds) && propertyIds.length > 0) {
+    query = query.in('id', propertyIds);
   }
 
   const { data: properties, error: listError } = await query;
