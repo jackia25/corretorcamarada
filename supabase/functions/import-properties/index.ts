@@ -91,8 +91,8 @@ serve(async (req) => {
       firecrawlKey,
       dryRun,
       limit: typeof limit === 'number' ? limit : undefined,
+      offset: typeof offset === 'number' ? offset : 0,
       propertyIds: Array.isArray(propertyIds) ? propertyIds : undefined,
-    });
 
     return new Response(JSON.stringify({ success: true, ...reconciliation }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
