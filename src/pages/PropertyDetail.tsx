@@ -393,7 +393,7 @@ export default function PropertyDetail() {
                 <SectionTitle right={property.updated_at ? `Atualizado em ${new Date(property.updated_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}` : undefined}>
                   Detalhes
                 </SectionTitle>
-                <div className="bg-secondary/40 rounded-lg p-6 md:p-8 grid md:grid-cols-2 gap-x-12">
+                <div className="bg-secondary/40 rounded-lg px-8 md:px-12 py-6 grid md:grid-cols-2 gap-x-16">
                   {property.external_code && <DetailRow label="ID do imóvel" value={property.external_code} />}
                   <DetailRow label="Preço" value={formatPrice(property.price_range_min, property.price_range_max)} />
                   {property.area_m2 != null && <DetailRow label="Área construída" value={`${property.area_m2} m²`} />}
