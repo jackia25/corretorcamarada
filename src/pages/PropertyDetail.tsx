@@ -236,40 +236,44 @@ export default function PropertyDetail() {
       .filter(Boolean);
 
     const normalizeInline = (value: string) => value.replace(/\*\*(.*?)\*\*/g, '$1').trim();
+    const isBullet = (line: string) => /^[-*•]\s+/.test(line);
+    const stripBullet = (line: string) => normalizeInline(line.replace(/^[-*•]\s+/, ''));
 
     return (
-      <div className="space-y-4">
+      <div className="space-y-6">
         {sections.map((section, sectionIndex) => {
           const lines = section
             .split('\n')
             .map((line) => line.trim())
             .filter(Boolean);
 
-          const bulletItems = lines
-            .filter((line) => line.startsWith('- '))
-            .map((line) => normalizeInline(line.replace(/^-\s*/, '')));
-
           const titleLine = lines.find((line) => /^\*\*.+\*\*:?$/.test(line));
           const title = titleLine ? normalizeInline(titleLine.replace(/:$/, '')) : null;
 
-          const paragraphLines = lines.filter((line) => !line.startsWith('- ') && line !== titleLine);
+          const rest = lines.filter((line) => line !== titleLine);
+          const bulletItems = rest.filter(isBullet).map(stripBullet);
+          const paragraphLines = rest.filter((line) => !isBullet(line));
           const paragraph = normalizeInline(paragraphLines.join(' '));
 
           return (
-            <div key={`${sectionIndex}-${title ?? 'section'}`} className="rounded-lg border bg-muted/30 p-4 space-y-3">
-              {title && <h3 className="font-semibold text-base">{title}</h3>}
+            <div key={sectionIndex} className="space-y-3">
+              {title && <h3 className="font-semibold text-base text-foreground">{title}</h3>}
 
-              {paragraph && <p className="text-sm md:text-base leading-relaxed text-foreground/90">{paragraph}</p>}
+              {paragraph && (
+                <p className="text-sm md:text-base leading-relaxed text-foreground/90 whitespace-pre-line">
+                  {paragraph}
+                </p>
+              )}
 
               {bulletItems.length > 0 && (
-                <ul className="space-y-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3">
                   {bulletItems.map((item, itemIndex) => (
-                    <li key={`${sectionIndex}-${itemIndex}`} className="flex items-start gap-2 text-sm md:text-base text-foreground/90">
-                      <span className="mt-2 h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
+                    <div key={itemIndex} className="flex items-start gap-3 text-foreground/90 text-sm md:text-base">
+                      <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-1" strokeWidth={1.5} />
                       <span>{item}</span>
-                    </li>
+                    </div>
                   ))}
-                </ul>
+                </div>
               )}
             </div>
           );
