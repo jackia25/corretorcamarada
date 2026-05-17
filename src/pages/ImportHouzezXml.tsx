@@ -579,37 +579,78 @@ export default function ImportHouzezXml() {
               )}
 
               {blockedCount > 0 && (
-                <div className="rounded-md border border-yellow-500/50 bg-yellow-500/10 p-3 text-xs">
-                  {blockedCount} imóvel(is) será(ão) ignorado(s): {blockedCount - parityFailedCount} sem ID/título e {parityFailedCount} com divergência de paridade origem×destino.
+                <div className="rounded-md border border-yellow-500/50 bg-yellow-500/10 p-3 text-xs space-y-1">
+                  <div>{blockedCount} imóvel(is) será(ão) ignorado(s):</div>
+                  <ul className="list-disc list-inside pl-2">
+                    {blockedCount - parityFailedCount - columnFailedCount > 0 && (
+                      <li>{blockedCount - parityFailedCount - columnFailedCount} sem ID/título</li>
+                    )}
+                    {parityFailedCount > 0 && <li>{parityFailedCount} com divergência de paridade meta/categories</li>}
+                    {columnFailedCount > 0 && <li>{columnFailedCount} com divergência de coluna mapeada (preço, área, etc.)</li>}
+                  </ul>
                 </div>
               )}
 
-              {parityFailedCount > 0 && effectiveList && (
+              {(parityFailedCount > 0 || columnFailedCount > 0) && effectiveList && (
                 <details className="text-xs rounded-md border border-destructive/50 bg-destructive/5 p-3">
                   <summary className="cursor-pointer font-medium text-destructive">
-                    Ver auditoria de paridade ({parityFailedCount} imóvel(is) com divergência)
+                    Ver auditoria pré-import ({parityFailedCount + columnFailedCount} imóvel(is))
                   </summary>
                   <div className="mt-3 space-y-3 max-h-96 overflow-auto">
-                    {effectiveList.filter((p) => p._parity && !p._parity.ok).map((p) => (
-                      <div key={p.source_id} className="border-b border-border/50 pb-2">
-                        <div className="font-mono font-semibold">
-                          Cód {p.external_code || p.source_id} — {p._parity!.diffs.length}/{p._parity!.totalKeys} divergências
+                    {effectiveList
+                      .filter((p) => (p._parity && !p._parity.ok) || (p._columns && p._columns.length > 0))
+                      .map((p) => {
+                        const allDiffs = [...(p._columns || []), ...(p._parity?.diffs || [])];
+                        return (
+                          <div key={p.source_id} className="border-b border-border/50 pb-2">
+                            <div className="font-mono font-semibold">
+                              Cód {p.external_code || p.source_id} — {allDiffs.length} divergência(s)
+                            </div>
+                            <ul className="mt-1 space-y-0.5 font-mono">
+                              {allDiffs.slice(0, 25).map((d, i) => (
+                                <li key={i} className="text-muted-foreground">
+                                  <span className="text-destructive">{d.reason}</span>{' '}
+                                  <span className="text-foreground">{d.key}</span>{' '}
+                                  esperado=<span className="break-all">{JSON.stringify(d.expected)}</span>
+                                  {d.actual !== undefined && <> achado=<span className="break-all">{JSON.stringify(d.actual)}</span></>}
+                                </li>
+                              ))}
+                              {allDiffs.length > 25 && (
+                                <li className="text-muted-foreground">… e mais {allDiffs.length - 25}</li>
+                              )}
+                            </ul>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </details>
+              )}
+
+              {postFailedCount > 0 && effectiveList && (
+                <details className="text-xs rounded-md border border-destructive/70 bg-destructive/10 p-3">
+                  <summary className="cursor-pointer font-medium text-destructive">
+                    Ver auditoria pós-import ({postFailedCount} imóvel(is) com divergência no DB)
+                  </summary>
+                  <div className="mt-3 space-y-3 max-h-96 overflow-auto">
+                    {effectiveList
+                      .filter((p) => p._postImport && !p._postImport.ok)
+                      .map((p) => (
+                        <div key={p.source_id} className="border-b border-border/50 pb-2">
+                          <div className="font-mono font-semibold">
+                            Cód {p.external_code || p.source_id} — {p._postImport!.diffs.length} divergência(s) DB
+                          </div>
+                          <ul className="mt-1 space-y-0.5 font-mono">
+                            {p._postImport!.diffs.slice(0, 25).map((d, i) => (
+                              <li key={i} className="text-muted-foreground">
+                                <span className="text-destructive">{d.reason}</span>{' '}
+                                <span className="text-foreground">{d.key}</span>{' '}
+                                esperado=<span className="break-all">{JSON.stringify(d.expected)}</span>
+                                {d.actual !== undefined && <> achado=<span className="break-all">{JSON.stringify(d.actual)}</span></>}
+                              </li>
+                            ))}
+                          </ul>
                         </div>
-                        <ul className="mt-1 space-y-0.5 font-mono">
-                          {p._parity!.diffs.slice(0, 20).map((d, i) => (
-                            <li key={i} className="text-muted-foreground">
-                              <span className="text-destructive">{d.reason}</span>{' '}
-                              <span className="text-foreground">{d.key}</span>{' '}
-                              esperado=<span className="break-all">{JSON.stringify(d.expected)}</span>
-                              {d.actual !== undefined && <> achado=<span className="break-all">{JSON.stringify(d.actual)}</span></>}
-                            </li>
-                          ))}
-                          {p._parity!.diffs.length > 20 && (
-                            <li className="text-muted-foreground">… e mais {p._parity!.diffs.length - 20}</li>
-                          )}
-                        </ul>
-                      </div>
-                    ))}
+                      ))}
                   </div>
                 </details>
               )}
