@@ -407,7 +407,7 @@ export function extractAdditionalSourceFields(
     if (!values || values.length === 0) continue;
     out.push({
       key: domain,
-      label: LABELS[domain] || humanizeKey(domain),
+      label: labelFor(domain),
       value: values.length === 1 ? values[0] : values,
       group: 'categoria',
     });
@@ -416,8 +416,8 @@ export function extractAdditionalSourceFields(
   // Metadados adicionais
   for (const [key, rawVal] of Object.entries(meta)) {
     if (isLikelyHidden(key)) continue;
-    if (key.startsWith('_')) continue; // pula campos técnicos do WordPress
-    if (!isWhitelisted(key)) continue; // só campos de negócio / com label conhecido
+    if (key.startsWith('_')) continue;
+    if (!isWhitelisted(key)) continue;
     const candidates = Array.isArray(rawVal) ? rawVal : [rawVal];
     const decoded = candidates.map((c) => decodeMaybeSerialized(c));
     const single = decoded.length === 1 ? decoded[0] : decoded;
@@ -426,7 +426,7 @@ export function extractAdditionalSourceFields(
     if (typeof formatted === 'string' && (formatted === '0' || formatted === '')) continue;
     out.push({
       key,
-      label: LABELS[key] || humanizeKey(key),
+      label: labelFor(key),
       value: formatted,
       group: 'meta',
     });
