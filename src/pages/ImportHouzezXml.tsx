@@ -389,10 +389,26 @@ export default function ImportHouzezXml() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <Button onClick={handleImport} disabled={step === 'importing' || step === 'done'} className="gradient-bg">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Limite de imóveis (opcional)</label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={parsed.length}
+                  placeholder={`Em branco = todos (${parsed.length})`}
+                  value={limit}
+                  onChange={(e) => setLimit(e.target.value)}
+                  disabled={step === 'importing'}
+                  className="max-w-xs"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Dica: comece com <code>1</code> para validar 1 imóvel antes de rodar o arquivo inteiro.
+                </p>
+              </div>
+              <Button onClick={handleImport} disabled={step === 'importing'} className="gradient-bg">
                 {step === 'importing'
                   ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Importando...</>
-                  : <><Upload className="mr-2 h-4 w-4" /> Iniciar importação ({parsed.length})</>}
+                  : <><Upload className="mr-2 h-4 w-4" /> Iniciar importação ({effectiveList?.length ?? parsed.length})</>}
               </Button>
 
               {(step === 'importing' || step === 'done') && (
