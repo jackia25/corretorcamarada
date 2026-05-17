@@ -608,8 +608,8 @@ export default function PropertyDetail() {
                 </Card>
               )}
 
-              {/* Owner view - dados originais da importação */}
-              {isOwner && property.source_payload && (
+              {/* Owner view - dados originais da importação (oculto na página pública; disponível na auditoria de importação) */}
+              {false && isOwner && property.source_payload && (
                 <Card>
                   <CardHeader>
                     <CardTitle>Dados da origem</CardTitle>
