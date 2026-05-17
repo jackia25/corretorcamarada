@@ -401,14 +401,23 @@ export default function ImportHouzezXml() {
   const [updated, setUpdated] = useState(0);
   const [errors, setErrors] = useState<string[]>([]);
   const [limit, setLimit] = useState<string>('');
+  const [codeFilter, setCodeFilter] = useState<string>('');
   const [forceImport, setForceImport] = useState(false);
 
   const BATCH = 10;
 
   const effectiveList = (() => {
     if (!parsed) return null;
+    let list = parsed;
+    const codes = codeFilter
+      .split(/[,\s]+/)
+      .map((c) => c.trim().toUpperCase())
+      .filter(Boolean);
+    if (codes.length > 0) {
+      list = list.filter((p) => p.external_code && codes.includes(p.external_code.toUpperCase()));
+    }
     const n = parseInt(limit, 10);
-    return Number.isFinite(n) && n > 0 ? parsed.slice(0, n) : parsed;
+    return Number.isFinite(n) && n > 0 ? list.slice(0, n) : list;
   })();
 
   const validation = (() => {
