@@ -31,6 +31,7 @@ type Incoming = {
   land_area_m2?: number | null;
   bedrooms?: number | null;
   bathrooms?: number | null;
+  suites?: number | null;
   garage_spaces?: number | null;
   year_built?: number | null;
   features?: string[] | null;
@@ -102,6 +103,7 @@ serve(async (req) => {
           land_area_m2: p.land_area_m2 ?? null,
           bedrooms: p.bedrooms ?? null,
           bathrooms: p.bathrooms ?? null,
+          suites: p.suites ?? null,
           garage_spaces: p.garage_spaces ?? null,
           year_built: p.year_built ?? null,
           features: p.features && p.features.length ? p.features : null,

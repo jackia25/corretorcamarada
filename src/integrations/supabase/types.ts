@@ -365,6 +365,7 @@ export type Database = {
           source_published_at: string | null
           source_url: string | null
           state: string
+          suites: number | null
           title: string
           updated_at: string
           video_url: string | null
@@ -411,6 +412,7 @@ export type Database = {
           source_published_at?: string | null
           source_url?: string | null
           state: string
+          suites?: number | null
           title: string
           updated_at?: string
           video_url?: string | null
@@ -457,6 +459,7 @@ export type Database = {
           source_published_at?: string | null
           source_url?: string | null
           state?: string
+          suites?: number | null
           title?: string
           updated_at?: string
           video_url?: string | null

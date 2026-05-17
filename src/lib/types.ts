@@ -45,6 +45,7 @@ export interface Property {
   documents: string[] | null;
   internal_notes: string | null;
   // Campos estendidos (paridade Houzez)
+  suites?: number | null;
   land_area_m2?: number | null;
   garage_spaces?: number | null;
   year_built?: number | null;

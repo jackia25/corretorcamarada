@@ -31,6 +31,7 @@ type ParsedProperty = {
   land_area_m2: number | null;
   bedrooms: number | null;
   bathrooms: number | null;
+  suites: number | null;
   garage_spaces: number | null;
   year_built: number | null;
   features: string[] | null;
@@ -192,23 +193,43 @@ function parseXML(xmlText: string): { properties: ParsedProperty[]; totalItems: 
 
     // Extra costs (IPTU, condomínio — Houzez tem várias chaves possíveis, inclusive com encoding bizarro)
     const extra: Record<string, unknown> = {};
-    const iptu = num(getMeta(item, 'fave_iptu') || getMeta(item, 'fave_property_iptu'));
+    const iptu = num(
+      getMeta(item, 'fave_iptu') ||
+      getMeta(item, 'fave_property_iptu') ||
+      getMeta(item, 'fave_property_iptu_value') ||
+      getMeta(item, 'fave_iptu_value')
+    );
     const cond = num(
       getMeta(item, 'fave_valor-do-condomc3adnio') ||
       getMeta(item, 'fave_condomc3ado') ||
       getMeta(item, 'fave_property_condominio') ||
-      getMeta(item, 'fave_condominio')
+      getMeta(item, 'fave_condominio') ||
+      getMeta(item, 'fave_property_taxa_condominio') ||
+      getMeta(item, 'fave_valor_condominio')
     );
     const secPrice = num(getMeta(item, 'fave_property_sec_price'));
+    const condoName = (
+      getMeta(item, 'fave_property_subtitle') ||
+      getMeta(item, 'fave_propriedade') ||
+      getMeta(item, 'fave_property_name') ||
+      ''
+    ).trim() || null;
     if (iptu) extra.iptu = iptu;
     if (cond) extra.condominio = cond;
     if (secPrice) extra.sec_price = secPrice;
+    if (condoName) extra.condo_name = condoName;
 
     // Price label (postfix): "Venda", "Locação", "Pacote", "+ despesas"
     const priceLabel = (getMeta(item, 'fave_property_price_postfix') || '').trim() || null;
 
     // Bathrooms — fallback para fave_banheiros (variação Lemos Properties)
     const bathrooms = int(getMeta(item, 'fave_property_bathrooms')) ?? int(getMeta(item, 'fave_banheiros'));
+    // Suites (suítes) — Houzez expõe como meta separada
+    const suites =
+      int(getMeta(item, 'fave_property_suites')) ??
+      int(getMeta(item, 'fave_suites')) ??
+      int(getMeta(item, 'fave_suite')) ??
+      int(getMeta(item, 'fave_property_suite'));
 
     // Address
     const addr = getMeta(item, 'fave_property_address') || getMeta(item, 'fave_property_map_address') || null;
@@ -241,6 +262,7 @@ function parseXML(xmlText: string): { properties: ParsedProperty[]; totalItems: 
       land_area_m2: num(getMeta(item, 'fave_property_land')),
       bedrooms: int(getMeta(item, 'fave_property_bedrooms')),
       bathrooms,
+      suites,
       garage_spaces: int(getMeta(item, 'fave_property_garage')),
       year_built: int(getMeta(item, 'fave_property_year')),
       features: getCategories(item, 'property_feature').length ? getCategories(item, 'property_feature') : null,
