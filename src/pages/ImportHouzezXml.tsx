@@ -8,6 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Upload, CheckCircle, AlertCircle, FileText } from 'lucide-react';
 import DOMPurify from 'dompurify';
+import { htmlToPlainText } from '@/lib/htmlToPlainText';
 
 type RawSnapshot = {
   fave_property_bathrooms: string;
@@ -65,16 +66,12 @@ type ParsedProperty = {
 
 function cleanDescription(html: string): string {
   if (!html) return '';
-  // Sanitize keeping only safe formatting tags
-  const clean = DOMPurify.sanitize(html, {
-    ALLOWED_TAGS: ['p', 'br', 'ul', 'ol', 'li', 'strong', 'b', 'em', 'i', 'u', 'h2', 'h3', 'h4', 'blockquote'],
-    ALLOWED_ATTR: [],
-  });
-  // Collapse extra whitespace and empty paragraphs
-  return clean
-    .replace(/<p>\s*<\/p>/g, '')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
+  // First sanitize away anything dangerous (scripts, event handlers, etc.)
+  const safe = DOMPurify.sanitize(html, { ALLOWED_ATTR: [] });
+  // Then convert to plain text with light markdown so the textarea editor
+  // shows readable content (no raw tags) and the details screen still
+  // renders **bold** and "- " bullets correctly.
+  return htmlToPlainText(safe);
 }
 
 const PROPERTY_TYPE_MAP: Record<string, string> = {

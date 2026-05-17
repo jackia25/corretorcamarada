@@ -1,65 +1,52 @@
-## Plano
+## Problema
 
-Vou transformar a importação em um fluxo com validação prévia, para você não precisar conferir imóvel por imóvel depois.
+Descrições importadas do Houzez estão salvas como HTML cru (`<strong data-start="...">`, `<ul>`, `<li>`, `&aacute;`, etc.). Quem edita vê uma sopa de tags em vez de texto.
 
-### 1. Criar um mapeamento explícito por perfil de origem
-- Detectar automaticamente quando o XML é da Lemos/Houzez customizado.
-- Para Lemos, tratar:
-  - `fave_property_bathrooms` como **Suíte** quando existir `fave_banheiros`.
-  - `fave_banheiros` como **Banheiros**.
-  - `fave_condomc3ado` como **nome da Propriedade/Condomínio** quando for texto.
-  - `fave_valor-do-condomc3adnio` como **Valor do Condomínio**.
-- Manter fallback Houzez padrão para XMLs que não tenham os campos customizados da Lemos.
+## Solução
 
-### 2. Adicionar uma etapa de “Pré-validação” antes do botão importar
-Depois de analisar o XML, a tela vai mostrar um relatório de paridade com os campos principais:
-- ID do imóvel
-- Tipo
-- Dormitórios
-- Suítes
-- Banheiros
-- Garagens
-- Área construída
-- Preço
-- Situação
-- Propriedade/Condomínio
-- Valor do condomínio
-- IPTU, quando houver
+Converter HTML → texto com markdown leve (`**negrito**`, `- item`, quebras de linha) em 3 pontos:
 
-### 3. Bloquear a importação se houver inconsistência crítica
-A importação só ficará liberada se os imóveis passarem na validação de mapeamento.
-Exemplos de bloqueio:
-- XML contém campo de suíte, mas o imóvel parseado ficou sem suíte.
-- XML contém `fave_banheiros`, mas banheiro foi importado de outro campo.
-- Valor textual de condomínio foi interpretado como valor financeiro.
-- ID externo ausente ou duplicado.
-- Campos numéricos convertidos para `null` mesmo existindo na origem.
+### 1. Importação (`src/pages/ImportHouzezXml.tsx`)
+Criar função `htmlToPlainText(html)` que:
+- Substitui `<strong>`/`<b>` por `**texto**`
+- Substitui `<em>`/`<i>` por `*texto*`
+- Substitui `<li>` por `- item\n`
+- Substitui `<p>`, `<br>`, `</div>` por quebras de linha
+- Remove `data-*`, `class`, `style` e qualquer tag restante
+- Decodifica entidades HTML (`&aacute;`→`á`, `&nbsp;`→espaço, `&amp;`→`&`, etc.)
+- Colapsa múltiplas quebras de linha (máx 2 seguidas)
 
-### 4. Exibir amostras auditáveis antes de importar
-Na própria tela de importação, mostrar alguns imóveis de amostra, incluindo HZ0007, com duas colunas:
-- **Origem/XML detectado**
-- **Como será salvo na plataforma**
+Aplicar a `description` antes de fazer upsert no banco.
 
-Assim você consegue ver o match antes de gravar, sem abrir cada imóvel depois.
+### 2. Tela de edição (`src/pages/EditProperty.tsx`)
+Sanitização defensiva: ao carregar o formulário, se a descrição contém `<` seguido de letra, passa pelo mesmo `htmlToPlainText`. Garante que descrições legadas não voltem a aparecer com tags mesmo sem reimportar.
 
-### 5. Reforçar validação no backend da importação
-A função `import-houzez-xml` também passará a validar o payload recebido antes de salvar:
-- rejeitar lote com campos obrigatórios inconsistentes;
-- registrar erros por imóvel;
-- impedir que dados sensíveis ou campos críticos sejam sobrescritos com `null` por falha de parser.
+### 3. Limpeza dos 288 imóveis já importados
+Migration única que aplica a mesma conversão via SQL (regex `regexp_replace`) nas descrições existentes onde `description ~ '<[a-z]'`. Função PL/pgSQL roda uma vez e é descartada depois.
 
-### 6. Reimportar com segurança
-Após aprovado e implementado:
-- você analisa o XML;
-- confere o relatório de pré-validação;
-- se estiver sem erros críticos, reimporta;
-- os imóveis existentes serão atualizados sem duplicar por `source_id`.
+## Compatibilidade com a tela de detalhes
 
-## Resultado esperado para o HZ0007
-- Visão geral: **Apartamento · 2 Dormitórios · 1 Suíte · 2 Garagens · 79 m²**
-- Detalhes: **Suíte 1**, **Banheiros 2**, **Propriedade Condomínio Soho Tamboré**, **Valor do Condomínio R$ 1.300**
+A tela de detalhes do imóvel já entende `**negrito**` e listas com `- `, então o texto convertido vai renderizar formatado corretamente sem nenhuma mudança extra lá.
 
-## Arquivos que serão alterados
-- `src/pages/ImportHouzezXml.tsx`
-- `supabase/functions/import-houzez-xml/index.ts`
-- Se necessário, pequenos ajustes em `src/pages/PropertyDetail.tsx` apenas para garantir que os campos já importados apareçam corretamente.
+## Arquivos alterados
+
+- `src/pages/ImportHouzezXml.tsx` — adicionar `htmlToPlainText` e chamar antes do upsert
+- `src/lib/htmlToPlainText.ts` (novo) — função reutilizável
+- `src/pages/EditProperty.tsx` — sanitização defensiva no load
+- Migration SQL — limpar 288 descrições existentes
+
+## Resultado (exemplo HZ0007)
+
+Antes:
+```
+<strong data-start="260">Condomínio Soho Tamboré</strong>, ideal...
+<ul><li>3 dormitórios</li><li>2 vagas</li></ul>
+```
+
+Depois:
+```
+**Condomínio Soho Tamboré**, ideal...
+
+- 3 dormitórios
+- 2 vagas
+```
