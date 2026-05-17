@@ -268,8 +268,15 @@ export default function ImportHouzezXml() {
   const [imported, setImported] = useState(0);
   const [updated, setUpdated] = useState(0);
   const [errors, setErrors] = useState<string[]>([]);
+  const [limit, setLimit] = useState<string>('');
 
   const BATCH = 10;
+
+  const effectiveList = (() => {
+    if (!parsed) return null;
+    const n = parseInt(limit, 10);
+    return Number.isFinite(n) && n > 0 ? parsed.slice(0, n) : parsed;
+  })();
 
   const handleParse = async () => {
     if (!file) return;
@@ -289,13 +296,18 @@ export default function ImportHouzezXml() {
   };
 
   const handleImport = async () => {
-    if (!parsed) return;
+    if (!effectiveList) return;
+    const list = effectiveList;
     setStep('importing');
+    setProgress(0);
+    setImported(0);
+    setUpdated(0);
+    setErrors([]);
     let imp = 0, upd = 0;
     const errs: string[] = [];
 
-    for (let i = 0; i < parsed.length; i += BATCH) {
-      const batch = parsed.slice(i, i + BATCH);
+    for (let i = 0; i < list.length; i += BATCH) {
+      const batch = list.slice(i, i + BATCH);
       try {
         const { data, error } = await supabase.functions.invoke('import-houzez-xml', {
           body: { properties: batch },
@@ -310,7 +322,7 @@ export default function ImportHouzezXml() {
       setImported(imp);
       setUpdated(upd);
       setErrors([...errs]);
-      setProgress(Math.min(100, Math.round(((i + BATCH) / parsed.length) * 100)));
+      setProgress(Math.min(100, Math.round(((i + BATCH) / list.length) * 100)));
     }
     setStep('done');
     toast({ title: 'Importação concluída', description: `${imp} novos, ${upd} atualizados, ${errs.length} erros` });
@@ -377,10 +389,26 @@ export default function ImportHouzezXml() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <Button onClick={handleImport} disabled={step === 'importing' || step === 'done'} className="gradient-bg">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Limite de imóveis (opcional)</label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={parsed.length}
+                  placeholder={`Em branco = todos (${parsed.length})`}
+                  value={limit}
+                  onChange={(e) => setLimit(e.target.value)}
+                  disabled={step === 'importing'}
+                  className="max-w-xs"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Dica: comece com <code>1</code> para validar 1 imóvel antes de rodar o arquivo inteiro.
+                </p>
+              </div>
+              <Button onClick={handleImport} disabled={step === 'importing'} className="gradient-bg">
                 {step === 'importing'
                   ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Importando...</>
-                  : <><Upload className="mr-2 h-4 w-4" /> Iniciar importação ({parsed.length})</>}
+                  : <><Upload className="mr-2 h-4 w-4" /> Iniciar importação ({effectiveList?.length ?? parsed.length})</>}
               </Button>
 
               {(step === 'importing' || step === 'done') && (
@@ -415,7 +443,7 @@ export default function ImportHouzezXml() {
               <CheckCircle className="mx-auto h-12 w-12 text-green-500 mb-2" />
               <h3 className="text-lg font-semibold">Pronto!</h3>
               <p className="text-muted-foreground">
-                {imported + updated} de {parsed?.length} imóveis sincronizados com sucesso.
+                {imported + updated} de {effectiveList?.length ?? parsed?.length} imóveis sincronizados com sucesso.
               </p>
             </CardContent>
           </Card>
