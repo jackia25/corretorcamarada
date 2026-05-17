@@ -81,7 +81,7 @@ export default function EditProperty() {
 
     setFormData({
       title: data.title || '',
-      description: data.description || '',
+      description: looksLikeHtml(data.description) ? htmlToPlainText(data.description) : (data.description || ''),
       property_type: (data.property_type as PropertyType) || '',
       neighborhood: data.neighborhood || '',
       city: data.city || '',
