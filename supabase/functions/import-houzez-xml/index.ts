@@ -43,6 +43,7 @@ type Incoming = {
   source_url?: string | null;
   source_published_at?: string | null;
   internal_notes?: string | null;
+  source_payload?: Record<string, unknown> | null;
 };
 
 const VALID_TYPES = new Set(['apartamento','casa','terreno','comercial','rural','outro']);
