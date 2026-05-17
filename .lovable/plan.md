@@ -1,26 +1,18 @@
-## Problema
+## O que muda
 
-A imagem 1 (correta) é a seção **Destaques** — grid de 3 colunas com ícone de check, sem caixas. A imagem 2 (errada) é a seção **Descrição**, onde o `formatDescription` envolve **cada bloco** num card com borda (`rounded-lg border bg-muted/30 p-4`), inclusive cada item de lista virou um card separado. Resultado: a lista "Destaques do imóvel" dentro da descrição aparece como uma pilha de caixas.
+Na tela **Importar XML Houzez**, adicionar um campo opcional **"Filtrar por código (ex: HZ0007)"** antes do botão de upload.
 
-## Solução
+## Comportamento
 
-Reescrever `formatDescription` em `src/pages/PropertyDetail.tsx` para seguir o mesmo padrão visual da seção Destaques:
-
-- **Remover** o wrapper com borda/fundo (`rounded-lg border bg-muted/30 p-4`).
-- **Títulos** (`**Texto:**` em linha própria) → `<h3>` discreto, sem caixa.
-- **Parágrafos** → texto corrido, sem caixa.
-- **Listas com `- `** → renderizar como grid de 1–3 colunas com `CheckCircle2` (mesmo componente, mesmo `strokeWidth={1.5}`, mesma cor `text-primary`) — idêntico à seção Destaques.
-- **Espaçamento** entre seções via `space-y-6` em vez de cards empilhados.
-- Detectar emoji/pin no início da linha (📍, 🏠 etc.) e renderizar inline sem virar bullet.
-
-## Resultado esperado (HZ0007)
-
-A descrição vai mostrar:
-- "Destaques do imóvel:" como subtítulo limpo
-- Itens "Área Total", "Quartos", "Pé-direito Duplo"… num grid com checkmark, igual à seção Destaques de cima
-- A linha "📍 Localização privilegiada…" como parágrafo normal
-- Sem caixinhas com borda em volta de cada item
+- Campo vazio → fluxo atual (importa todos os imóveis do XML).
+- Campo preenchido com 1 ou mais códigos (separados por vírgula ou espaço, ex: `HZ0007` ou `HZ0007, HZ0012`) → após parsear o XML, filtra para manter **apenas** os imóveis cujo `external_code` (campo `fave_property_id`) bate com algum dos códigos.
+- A filtragem é case-insensitive e ignora espaços.
+- Se nenhum imóvel do XML bater com os códigos digitados, mostra toast de erro "Nenhum imóvel encontrado com os códigos informados" e não importa nada.
+- Validação, amostra e importação seguem exatamente o fluxo atual, só sobre o subconjunto filtrado.
+- Como a importação é idempotente por `source_id`, importar só o HZ0007 vai criar (se novo) ou atualizar (se já existir) apenas esse imóvel — os outros 287 ficam intactos.
 
 ## Arquivo alterado
 
-- `src/pages/PropertyDetail.tsx` — apenas a função `formatDescription` (linhas ~232–279). Nenhuma mudança em dados, importação ou banco.
+- `src/pages/ImportHouzezXml.tsx` — adicionar input controlado `codeFilter`, aplicar `filter` na lista de propriedades parseadas antes da validação, e mostrar quantos foram filtrados no resumo.
+
+Nada de banco, nada de edge function — só UI sobre a infraestrutura existente.

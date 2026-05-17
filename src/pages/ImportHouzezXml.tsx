@@ -401,14 +401,23 @@ export default function ImportHouzezXml() {
   const [updated, setUpdated] = useState(0);
   const [errors, setErrors] = useState<string[]>([]);
   const [limit, setLimit] = useState<string>('');
+  const [codeFilter, setCodeFilter] = useState<string>('');
   const [forceImport, setForceImport] = useState(false);
 
   const BATCH = 10;
 
   const effectiveList = (() => {
     if (!parsed) return null;
+    let list = parsed;
+    const codes = codeFilter
+      .split(/[,\s]+/)
+      .map((c) => c.trim().toUpperCase())
+      .filter(Boolean);
+    if (codes.length > 0) {
+      list = list.filter((p) => p.external_code && codes.includes(p.external_code.toUpperCase()));
+    }
     const n = parseInt(limit, 10);
-    return Number.isFinite(n) && n > 0 ? parsed.slice(0, n) : parsed;
+    return Number.isFinite(n) && n > 0 ? list.slice(0, n) : list;
   })();
 
   const validation = (() => {
@@ -623,6 +632,21 @@ export default function ImportHouzezXml() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
+                <label className="text-sm font-medium">Filtrar por código (opcional)</label>
+                <Input
+                  type="text"
+                  placeholder="Ex: HZ0007 ou HZ0007, HZ0012"
+                  value={codeFilter}
+                  onChange={(e) => setCodeFilter(e.target.value)}
+                  disabled={step === 'importing'}
+                  className="max-w-md"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Importa só os imóveis com os códigos informados. Vazio = todos.
+                </p>
+              </div>
+
+              <div className="space-y-2">
                 <label className="text-sm font-medium">Limite de imóveis (opcional)</label>
                 <Input
                   type="number"
@@ -638,7 +662,14 @@ export default function ImportHouzezXml() {
                   Dica: comece com <code>1</code> para validar 1 imóvel antes de rodar o arquivo inteiro.
                 </p>
               </div>
-              <Button onClick={handleImport} disabled={step === 'importing' || !canImport} className="gradient-bg">
+
+              {codeFilter.trim() && effectiveList && effectiveList.length === 0 && (
+                <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+                  Nenhum imóvel encontrado no XML com os códigos informados.
+                </div>
+              )}
+
+              <Button onClick={handleImport} disabled={step === 'importing' || !canImport || (effectiveList?.length ?? 0) === 0} className="gradient-bg">
                 {step === 'importing'
                   ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Importando...</>
                   : <><Upload className="mr-2 h-4 w-4" /> Iniciar importação ({effectiveList?.length ?? parsed.length})</>}
