@@ -352,10 +352,18 @@ export default function ImportHouzezXml() {
       list = list.filter((p) => p.external_code && codes.includes(p.external_code.toUpperCase()));
     }
     const n = parseInt(limit, 10);
-    return Number.isFinite(n) && n > 0 ? list.slice(0, n) : list;
+    list = Number.isFinite(n) && n > 0 ? list.slice(0, n) : list;
+    // Roda validador de paridade origem×destino em cada imóvel filtrado
+    return list.map((p) => {
+      const srcMeta = (p.source_payload?.meta || {}) as Record<string, string | string[]>;
+      const srcCats = (p.source_payload?.categories || {}) as Record<string, string[]>;
+      const parity = validateSourceParity({ meta: srcMeta, categories: srcCats }, p.source_payload);
+      return { ...p, _parity: parity };
+    });
   })();
 
-  const blockedCount = effectiveList?.filter((p) => p._blocking).length ?? 0;
+  const blockedCount = effectiveList?.filter((p) => p._blocking || (p._parity && !p._parity.ok)).length ?? 0;
+  const parityFailedCount = effectiveList?.filter((p) => p._parity && !p._parity.ok).length ?? 0;
 
   const handleParse = async () => {
     if (!file) return;
