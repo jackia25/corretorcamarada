@@ -9,7 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, Upload, CheckCircle, AlertCircle, FileText } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import { htmlToPlainText } from '@/lib/htmlToPlainText';
-import { validateSourceParity, type ParityDiff } from '@/lib/sourceParity';
+import { validateSourceParity, validateColumnCoherence, type ParityDiff } from '@/lib/sourceParity';
 
 type ParsedProperty = {
   source_id: string;
@@ -48,6 +48,8 @@ type ParsedProperty = {
   source_payload: Record<string, unknown>;
   _blocking: string | null;
   _parity?: { ok: boolean; totalKeys: number; diffs: ParityDiff[] };
+  _columns?: ParityDiff[];
+  _postImport?: { ok: boolean; diffs: ParityDiff[] } | null;
 };
 
 function cleanDescription(html: string): string {
