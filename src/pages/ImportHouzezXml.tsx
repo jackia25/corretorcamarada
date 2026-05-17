@@ -526,10 +526,95 @@ export default function ImportHouzezXml() {
           </Card>
         )}
 
+        {parsed && effectiveList && validation && (
+          <Card className={validation.withErrors > 0 ? 'border-destructive/50' : validation.withWarnings > 0 ? 'border-yellow-500/50' : 'border-green-500/50'}>
+            <CardHeader>
+              <CardTitle>3. Pré-validação (paridade origem → destino)</CardTitle>
+              <CardDescription>
+                Confere se os campos críticos do XML batem com o que será salvo. A importação só libera quando não houver erros.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-3 gap-4 text-center">
+                <div className="p-3 rounded-lg bg-green-500/10">
+                  <div className="text-2xl font-bold text-green-600">{validation.ok}</div>
+                  <div className="text-xs text-muted-foreground">OK</div>
+                </div>
+                <div className="p-3 rounded-lg bg-yellow-500/10">
+                  <div className="text-2xl font-bold text-yellow-600">{validation.withWarnings}</div>
+                  <div className="text-xs text-muted-foreground">Avisos</div>
+                </div>
+                <div className="p-3 rounded-lg bg-destructive/10">
+                  <div className="text-2xl font-bold text-destructive">{validation.withErrors}</div>
+                  <div className="text-xs text-muted-foreground">Bloqueados</div>
+                </div>
+              </div>
+
+              {/* Amostra: primeiros 5 + qualquer com erro/HZ0007 */}
+              <details open className="text-sm">
+                <summary className="cursor-pointer font-medium">Ver amostra (origem vs destino)</summary>
+                <div className="mt-3 space-y-3 max-h-[500px] overflow-auto">
+                  {(() => {
+                    const samples = new Set<ParsedProperty>();
+                    effectiveList.slice(0, 5).forEach(p => samples.add(p));
+                    effectiveList.filter(p => p._issues.length > 0).slice(0, 10).forEach(p => samples.add(p));
+                    const hz7 = effectiveList.find(p => p.external_code === 'HZ0007');
+                    if (hz7) samples.add(hz7);
+                    return Array.from(samples).map((p) => (
+                      <div key={p.source_id} className="rounded border p-3 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="font-mono text-xs">{p.external_code || p.source_id}</span>
+                          <span className="text-xs truncate max-w-[60%]">{p.title}</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs font-mono">
+                          <div className="font-bold text-muted-foreground">Origem (XML)</div>
+                          <div className="font-bold text-muted-foreground">Será salvo</div>
+                          <div>fave_property_bathrooms: {p._raw.fave_property_bathrooms || '—'}</div>
+                          <div>suítes: {p.suites ?? '—'} · banheiros: {p.bathrooms ?? '—'}</div>
+                          <div>fave_banheiros: {p._raw.fave_banheiros || '—'}</div>
+                          <div>banheiros: {p.bathrooms ?? '—'}</div>
+                          <div>fave_property_bedrooms: {p._raw.fave_property_bedrooms || '—'}</div>
+                          <div>dormitórios: {p.bedrooms ?? '—'}</div>
+                          <div>fave_property_garage: {p._raw.fave_property_garage || '—'}</div>
+                          <div>garagens: {p.garage_spaces ?? '—'}</div>
+                          <div>fave_property_size: {p._raw.fave_property_size || '—'}</div>
+                          <div>área: {p.area_m2 ?? '—'} m²</div>
+                          <div>fave_property_price: {p._raw.fave_property_price || '—'}</div>
+                          <div>preço: {p.price ?? '—'}</div>
+                          <div>condo (nome bruto): {p._raw.condo_name_raw || '—'}</div>
+                          <div>extra.condo_name: {String((p.extra_costs as any)?.condo_name ?? '—')}</div>
+                          <div>condo (valor bruto): {p._raw.condo_value_raw || '—'}</div>
+                          <div>extra.condominio: {String((p.extra_costs as any)?.condominio ?? '—')}</div>
+                        </div>
+                        {p._issues.length > 0 && (
+                          <ul className="mt-2 space-y-1">
+                            {p._issues.map((iss, i) => (
+                              <li key={i} className={`text-xs ${iss.severity === 'error' ? 'text-destructive' : 'text-yellow-600'}`}>
+                                {iss.severity === 'error' ? '✕' : '⚠'} [{iss.field}] {iss.message}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    ));
+                  })()}
+                </div>
+              </details>
+
+              {validation.withErrors > 0 && (
+                <label className="flex items-center gap-2 text-xs">
+                  <input type="checkbox" checked={forceImport} onChange={(e) => setForceImport(e.target.checked)} />
+                  Forçar importação mesmo com erros (não recomendado)
+                </label>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {parsed && (
           <Card>
             <CardHeader>
-              <CardTitle>3. Importar para o Corretor Camarada</CardTitle>
+              <CardTitle>4. Importar para o Corretor Camarada</CardTitle>
               <CardDescription>
                 Todos serão vinculados ao seu usuário, fotos como públicas. Re-importação atualiza sem duplicar (chave: <code>source_id</code>).
               </CardDescription>
@@ -551,11 +636,16 @@ export default function ImportHouzezXml() {
                   Dica: comece com <code>1</code> para validar 1 imóvel antes de rodar o arquivo inteiro.
                 </p>
               </div>
-              <Button onClick={handleImport} disabled={step === 'importing'} className="gradient-bg">
+              <Button onClick={handleImport} disabled={step === 'importing' || !canImport} className="gradient-bg">
                 {step === 'importing'
                   ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Importando...</>
                   : <><Upload className="mr-2 h-4 w-4" /> Iniciar importação ({effectiveList?.length ?? parsed.length})</>}
               </Button>
+              {!canImport && validation && validation.withErrors > 0 && (
+                <p className="text-xs text-destructive">
+                  Importação bloqueada: {validation.withErrors} imóveis com inconsistência de mapeamento. Revise a amostra acima ou marque "forçar".
+                </p>
+              )}
 
               {(step === 'importing' || step === 'done') && (
                 <>
