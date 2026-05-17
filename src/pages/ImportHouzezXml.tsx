@@ -190,12 +190,25 @@ function parseXML(xmlText: string): { properties: ParsedProperty[]; totalItems: 
     if (statusRaw.includes('alug') && statusRaw.includes('vend')) listing = 'venda_aluguel';
     else if (statusRaw.includes('alug')) listing = 'aluguel';
 
-    // Extra costs
+    // Extra costs (IPTU, condomínio — Houzez tem várias chaves possíveis, inclusive com encoding bizarro)
     const extra: Record<string, unknown> = {};
-    const iptu = num(getMeta(item, 'fave_property_iptu') || getMeta(item, 'fave_iptu'));
-    const cond = num(getMeta(item, 'fave_property_condominio') || getMeta(item, 'fave_condominio'));
+    const iptu = num(getMeta(item, 'fave_iptu') || getMeta(item, 'fave_property_iptu'));
+    const cond = num(
+      getMeta(item, 'fave_valor-do-condomc3adnio') ||
+      getMeta(item, 'fave_condomc3ado') ||
+      getMeta(item, 'fave_property_condominio') ||
+      getMeta(item, 'fave_condominio')
+    );
+    const secPrice = num(getMeta(item, 'fave_property_sec_price'));
     if (iptu) extra.iptu = iptu;
     if (cond) extra.condominio = cond;
+    if (secPrice) extra.sec_price = secPrice;
+
+    // Price label (postfix): "Venda", "Locação", "Pacote", "+ despesas"
+    const priceLabel = (getMeta(item, 'fave_property_price_postfix') || '').trim() || null;
+
+    // Bathrooms — fallback para fave_banheiros (variação Lemos Properties)
+    const bathrooms = int(getMeta(item, 'fave_property_bathrooms')) ?? int(getMeta(item, 'fave_banheiros'));
 
     // Address
     const addr = getMeta(item, 'fave_property_address') || getMeta(item, 'fave_property_map_address') || null;
@@ -204,11 +217,13 @@ function parseXML(xmlText: string): { properties: ParsedProperty[]; totalItems: 
     const pubDate = text(item.getElementsByTagName('pubDate')[0]);
     const pubISO = pubDate ? new Date(pubDate).toISOString() : null;
 
+    const rawDesc = text(item.getElementsByTagName('content:encoded')[0]);
+
     properties.push({
       source_id: `houzez:wp${postId}`,
       external_code: externalCode,
       title: title || `Imóvel ${externalCode || postId}`,
-      description: text(item.getElementsByTagName('content:encoded')[0]) || null,
+      description: rawDesc ? cleanDescription(rawDesc) : null,
       property_type: propertyType,
       listing_status: listing,
       labels: getCategories(item, 'property_label').length ? getCategories(item, 'property_label') : null,
@@ -221,10 +236,11 @@ function parseXML(xmlText: string): { properties: ParsedProperty[]; totalItems: 
       latitude: num(getMeta(item, 'houzez_geolocation_lat')),
       longitude: num(getMeta(item, 'houzez_geolocation_long')),
       price: num(getMeta(item, 'fave_property_price')),
+      price_label: priceLabel,
       area_m2: num(getMeta(item, 'fave_property_size')),
       land_area_m2: num(getMeta(item, 'fave_property_land')),
       bedrooms: int(getMeta(item, 'fave_property_bedrooms')),
-      bathrooms: int(getMeta(item, 'fave_property_bathrooms')),
+      bathrooms,
       garage_spaces: int(getMeta(item, 'fave_property_garage')),
       year_built: int(getMeta(item, 'fave_property_year')),
       features: getCategories(item, 'property_feature').length ? getCategories(item, 'property_feature') : null,
