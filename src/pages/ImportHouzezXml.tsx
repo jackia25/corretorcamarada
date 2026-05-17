@@ -300,7 +300,7 @@ function parseXML(xmlText: string): { properties: ParsedProperty[]; totalItems: 
       longitude: num(getMetaFirst(meta, 'houzez_geolocation_long')),
       price: num(getMetaFirst(meta, 'fave_property_price')),
       price_label: priceLabel,
-      area_m2: num(getMetaFirst(meta, 'fave_property_size')),
+      area_m2: num(getMetaFirst(meta, 'fave_property_size')) ?? num(getMetaFirst(meta, 'fave_property_land')),
       land_area_m2: num(getMetaFirst(meta, 'fave_property_land')),
       bedrooms: int(getMetaFirst(meta, 'fave_property_bedrooms')),
       bathrooms,
