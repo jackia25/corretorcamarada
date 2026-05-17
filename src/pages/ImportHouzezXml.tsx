@@ -47,6 +47,7 @@ type ParsedProperty = {
   internal_notes: string | null;
   source_payload: Record<string, unknown>;
   _blocking: string | null;
+  _parity?: { ok: boolean; totalKeys: number; diffs: ParityDiff[] };
 };
 
 function cleanDescription(html: string): string {
