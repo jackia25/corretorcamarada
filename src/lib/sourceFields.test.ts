@@ -21,7 +21,7 @@ function ok(cond: boolean, msg: string) {
 
 console.log('\n[unserializePhp]');
 eq(
-  unserializePhp('a:2:{i:0;s:6:"Caução";i:1;s:13:"Seguro fiança";}'),
+  unserializePhp('a:2:{i:0;s:8:"Caução";i:1;s:14:"Seguro fiança";}'),
   ['Caução', 'Seguro fiança'],
   'array PHP serializado vira array JS',
 );
@@ -32,7 +32,7 @@ eq(unserializePhp('i:42;'), 42, 'int PHP');
 console.log('\n[decodeMaybeSerialized]');
 eq(decodeMaybeSerialized('Sim'), 'Sim', 'string crua passa direto');
 eq(
-  decodeMaybeSerialized('a:1:{i:0;s:6:"Caução";}'),
+  decodeMaybeSerialized('a:1:{i:0;s:8:"Caução";}'),
   ['Caução'],
   'autodetect PHP serialize',
 );
@@ -69,7 +69,7 @@ const payload = {
     fave_property_condominio: '850',
     fave_propriedade: 'Condomínio Ápice Park',
     // CAMPOS DE NEGÓCIO — DEVEM aparecer
-    fave_garantias_aceitas: 'a:2:{i:0;s:6:"Caução";i:1;s:13:"Seguro fiança";}',
+    fave_garantias_aceitas: 'a:2:{i:0;s:8:"Caução";i:1;s:14:"Seguro fiança";}',
     fave_prazo_contrato: '30 meses',
     fave_aceita_permuta: 'Sim',
     fave_aceita_proposta: 'Sim',
