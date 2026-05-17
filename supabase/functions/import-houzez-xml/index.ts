@@ -117,6 +117,7 @@ serve(async (req) => {
           source_url: p.source_url || null,
           source_published_at: p.source_published_at || null,
           internal_notes: p.internal_notes || null,
+          source_payload: p.source_payload || null,
           owner_name: 'A informar',
           owner_phone: 'A informar',
           is_active: true,
