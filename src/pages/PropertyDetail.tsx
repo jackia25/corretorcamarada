@@ -68,7 +68,8 @@ export default function PropertyDetail() {
       .from('properties')
       .select(`
         id, title, description, property_type, neighborhood, city, state,
-        price_range_min, price_range_max, bedrooms, bathrooms, area_m2,
+        price_range_min, price_range_max, price_label, bedrooms, bathrooms, area_m2,
+        garage_spaces, year_built, latitude, longitude, video_url, virtual_tour_url, extra_costs,
         features, public_photos, is_active, owner_id, created_at, updated_at,
         owner:profiles!properties_owner_id_fkey(id, full_name, creci, avatar_url, city, state)
       `)
