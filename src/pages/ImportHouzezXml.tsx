@@ -8,6 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Upload, CheckCircle, AlertCircle, FileText } from 'lucide-react';
 import DOMPurify from 'dompurify';
+import { htmlToPlainText } from '@/lib/htmlToPlainText';
 
 type RawSnapshot = {
   fave_property_bathrooms: string;
