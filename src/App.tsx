@@ -22,6 +22,7 @@ import Agreements from "./pages/Agreements";
 import Logs from "./pages/Logs";
 import CrossingReports from "./pages/CrossingReports";
 import ImportProperties from "./pages/ImportProperties";
+import ImportHouzezXml from "./pages/ImportHouzezXml";
 import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 
