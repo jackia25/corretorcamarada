@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Upload, CheckCircle, AlertCircle, FileText } from 'lucide-react';
+import DOMPurify from 'dompurify';
 
 type ParsedProperty = {
   source_id: string;
@@ -25,6 +26,7 @@ type ParsedProperty = {
   latitude: number | null;
   longitude: number | null;
   price: number | null;
+  price_label: string | null;
   area_m2: number | null;
   land_area_m2: number | null;
   bedrooms: number | null;
@@ -41,6 +43,20 @@ type ParsedProperty = {
   source_published_at: string | null;
   internal_notes: string | null;
 };
+
+function cleanDescription(html: string): string {
+  if (!html) return '';
+  // Sanitize keeping only safe formatting tags
+  const clean = DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: ['p', 'br', 'ul', 'ol', 'li', 'strong', 'b', 'em', 'i', 'u', 'h2', 'h3', 'h4', 'blockquote'],
+    ALLOWED_ATTR: [],
+  });
+  // Collapse extra whitespace and empty paragraphs
+  return clean
+    .replace(/<p>\s*<\/p>/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
 
 const PROPERTY_TYPE_MAP: Record<string, string> = {
   apartamento: 'apartamento',
