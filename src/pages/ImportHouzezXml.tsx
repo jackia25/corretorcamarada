@@ -74,6 +74,19 @@ function getMeta(item: Element, key: string): string {
   return '';
 }
 
+function getMetaAll(item: Element, key: string): string[] {
+  const metas = item.getElementsByTagName('wp:postmeta');
+  const out: string[] = [];
+  for (let i = 0; i < metas.length; i++) {
+    const k = text(metas[i].getElementsByTagName('wp:meta_key')[0]);
+    if (k === key) {
+      const v = text(metas[i].getElementsByTagName('wp:meta_value')[0]);
+      if (v) out.push(v);
+    }
+  }
+  return out;
+}
+
 function getCategories(item: Element, domain: string): string[] {
   const cats = item.getElementsByTagName('category');
   const out: string[] = [];
@@ -127,9 +140,14 @@ function parseXML(xmlText: string): { properties: ParsedProperty[]; totalItems: 
     const externalCode = getMeta(item, 'fave_property_id') || null;
     const title = text(item.getElementsByTagName('title')[0]);
 
-    // Photos: fave_property_images is a serialized PHP array of attachment IDs
-    const imagesRaw = getMeta(item, 'fave_property_images');
-    const ids = imagesRaw.match(/\d+/g) || [];
+    // Photos: Houzez stores ONE attachment ID per <wp:postmeta> entry with key 'fave_property_images'
+    // (NOT a serialized PHP array). May also contain fallback serialized IDs.
+    const imagesRawList = getMetaAll(item, 'fave_property_images');
+    const ids: string[] = [];
+    for (const raw of imagesRawList) {
+      const matches = raw.match(/\d+/g) || [];
+      for (const m of matches) if (!ids.includes(m)) ids.push(m);
+    }
     const photos: string[] = [];
     for (const id of ids) {
       const url = attachmentMap.get(id);
@@ -171,7 +189,7 @@ function parseXML(xmlText: string): { properties: ParsedProperty[]; totalItems: 
     const pubISO = pubDate ? new Date(pubDate).toISOString() : null;
 
     properties.push({
-      source_id: `houzez:${externalCode || postId}`,
+      source_id: `houzez:wp${postId}`,
       external_code: externalCode,
       title: title || `Imóvel ${externalCode || postId}`,
       description: text(item.getElementsByTagName('content:encoded')[0]) || null,
