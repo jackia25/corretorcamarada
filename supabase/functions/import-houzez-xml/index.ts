@@ -26,6 +26,7 @@ type Incoming = {
   latitude?: number | null;
   longitude?: number | null;
   price?: number | null;
+  price_label?: string | null;
   area_m2?: number | null;
   land_area_m2?: number | null;
   bedrooms?: number | null;
