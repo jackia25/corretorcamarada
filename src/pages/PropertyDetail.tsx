@@ -110,7 +110,7 @@ export default function PropertyDetail() {
         id, title, description, property_type, listing_status, neighborhood, city, state,
         price_range_min, price_range_max, price_label, bedrooms, bathrooms, suites, area_m2, land_area_m2,
         garage_spaces, year_built, latitude, longitude, video_url, virtual_tour_url, extra_costs,
-        external_code, features, public_photos, is_active, owner_id, created_at, updated_at,
+        external_code, features, public_photos, is_active, owner_id, created_at, updated_at, source_payload,
         owner:profiles!properties_owner_id_fkey(id, full_name, creci, avatar_url, city, state)
       `)
       .eq('id', id)
