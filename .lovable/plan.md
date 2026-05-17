@@ -1,69 +1,32 @@
-## Problema
+## Objetivo
+Garantir que o Corretor Camarada preserve e mostre no destino todos os campos disponíveis na origem, sem depender de validação manual imóvel por imóvel.
 
-Hoje o importador só persiste os campos que foram **explicitamente mapeados** no parser (bedrooms, bathrooms, IPTU, condomínio, etc.). Qualquer `wp:postmeta`, categoria ou tag custom que a imobiliária criar fica **perdido** — daí a necessidade de validar imóvel a imóvel.
+## Plano
+1. **Criar uma camada genérica de campos da origem**
+   - Ler todos os `wp:postmeta`, categorias, dados do post, anexos e campos especiais do XML.
+   - Converter cada campo em itens exibíveis com `label`, `valor`, `origem`, `chave original` e ordem.
+   - Manter o `source_payload` como cópia bruta integral, mas adicionar uma versão normalizada para a UI não depender de mapeamento manual.
 
-## Solução: payload bruto + mapeamento genérico
+2. **Resolver campos compostos e repetidos**
+   - Tratar valores repetidos como lista.
+   - Detectar estruturas comuns do Houzez/WordPress que podem vir serializadas, incluindo arrays PHP/JSON quando existirem.
+   - Isso cobre exemplos como `Propriedade / Condomínio Ápice Park`, `Garantias aceitas / Caução, Seguro fiança`, `Prazo de contrato`, `Aceita permuta`, `Aceita proposta`, e qualquer outro campo customizado.
 
-Cada imóvel passa a guardar **um snapshot completo da origem** em uma coluna JSONB. O mapeamento tipado continua existindo (para colunas usadas em filtros/listagens), mas **nenhum campo é descartado**.
+3. **Exibir todos os campos úteis no detalhe do imóvel**
+   - Substituir o bloco fixo de “Detalhes” por uma combinação de:
+     - campos principais já mapeados para filtros/listagens;
+     - todos os campos adicionais vindos da origem que ainda não aparecem.
+   - Evitar duplicidade: se um dado já aparece como preço, dormitório, tipo etc., não repetir com chave técnica.
+   - Usar labels legíveis em português quando possível e fallback para a chave original.
 
-### 1. Banco — nova coluna `source_payload` (JSONB) em `properties`
+4. **Adicionar auditoria de paridade na importação**
+   - No resumo do XML, mostrar quantos campos distintos foram detectados na origem.
+   - Para cada imóvel importável, garantir que os campos detectados foram anexados ao `source_payload`/camada normalizada antes de enviar para a função.
+   - Não bloquear por campo desconhecido; campo desconhecido deve ser preservado e exibido.
 
-Guarda exatamente o que veio do XML do imóvel:
+5. **Persistir tudo na importação**
+   - Atualizar a função `import-houzez-xml` para salvar a estrutura normalizada junto ao `source_payload` dentro do JSON existente, sem criar uma coluna nova se não for necessário.
+   - Reimportações continuam idempotentes por `source_id`, atualizando o imóvel sem duplicar.
 
-```text
-source_payload = {
-  post: { id, title, link, pubDate, status, post_type },
-  meta: { <todas as wp:postmeta key→value, sem filtro> },
-  categories: { property_type: [...], property_status: [...], property_area: [...], property_feature: [...], property_label: [...], ... },
-  attachments: [{ id, url, title }],   // só os referenciados pelo imóvel
-  imported_at: "ISO",
-  source_format: "houzez-xml-v1"
-}
-```
-
-Vantagens:
-- Qualquer campo novo que a Lemos adicionar no Houzez aparece automaticamente em `source_payload.meta`.
-- Reimportar é idempotente: sobrescreve o snapshot pelo `source_id`.
-- A página de detalhes pode mostrar uma seção "Dados originais" lendo direto desse JSON, então campos não mapeados ainda ficam visíveis para o corretor.
-
-### 2. Parser (`src/pages/ImportHouzezXml.tsx`)
-
-- Substituir a varredura seletiva por uma genérica: percorrer **todas** as `wp:postmeta` do `<item>` e colocar em `meta` (com merge por chave repetida).
-- Percorrer **todas** as `<category>` agrupando por `domain`.
-- Manter o mapeamento atual dos campos tipados (bedrooms, price, etc.) — esses continuam alimentando as colunas próprias para filtros.
-- Remover as validações campo-a-campo de paridade (`_issues`) — não cabe mais ao usuário validar; o que não foi mapeado fica garantido em `source_payload`. Manter apenas erros bloqueantes reais (ex.: `external_code` ausente, título vazio).
-
-### 3. Edge function (`supabase/functions/import-houzez-xml/index.ts`)
-
-- Aceitar e gravar `source_payload` no upsert.
-- Continuar idempotente por `source_id`.
-- Em update, **sempre** sobrescrever `source_payload` (espelho da origem atual).
-
-### 4. UI da tela de detalhes (`src/pages/PropertyDetail.tsx`)
-
-- Adicionar uma seção colapsável "Dados da origem" (visível para o dono do imóvel) listando `source_payload.meta` e `source_payload.categories` como key/value. Assim qualquer campo extra fica acessível sem precisar criar coluna nova.
-
-### 5. UI da tela de importação
-
-- Remover o painel "validação de paridade" (não faz mais sentido).
-- Manter o filtro por código e o limite que já existem.
-- Mostrar contagem simples: X criados, Y atualizados, Z falhas (com motivo).
-
-## Arquivos alterados
-
-- `supabase/migrations/<novo>.sql` — `ALTER TABLE properties ADD COLUMN source_payload jsonb` + índice GIN opcional.
-- `src/pages/ImportHouzezXml.tsx` — parser genérico, envia `source_payload`, remove validação campo-a-campo.
-- `supabase/functions/import-houzez-xml/index.ts` — persiste `source_payload`.
-- `src/lib/types.ts` — adicionar `source_payload?: Record<string, unknown> | null` em `Property`.
-- `src/pages/PropertyDetail.tsx` — seção "Dados da origem" para o dono.
-
-## Fora de escopo
-
-- Não criar colunas tipadas para cada possível campo Houzez — `source_payload` cobre tudo.
-- Não reimplementar import de URL/Firecrawl — fica para depois.
-
-## Pergunta antes de implementar
-
-Você prefere que a seção "Dados da origem" no detalhe do imóvel seja:
-- **(a)** visível só para o dono do imóvel (admin/listador), ou
-- **(b)** também visível para corretores compradores que já têm acordo ativo?
+## Resultado esperado
+Ao importar qualquer imóvel do XML, o destino terá os campos mapeados para funcionamento do portal e também todos os campos restantes da origem visíveis no detalhe do imóvel, incluindo campos customizados diferentes entre imóveis.
