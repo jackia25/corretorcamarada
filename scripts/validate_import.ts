@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { validateColumnCoherence } from './src/lib/sourceParity';
+import { validateColumnCoherence } from '../src/lib/sourceParity';
 
 const url = process.env.SUPABASE_URL!;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
