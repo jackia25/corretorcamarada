@@ -399,6 +399,7 @@ export default function ImportHouzezXml() {
   const [updated, setUpdated] = useState(0);
   const [errors, setErrors] = useState<string[]>([]);
   const [limit, setLimit] = useState<string>('');
+  const [forceImport, setForceImport] = useState(false);
 
   const BATCH = 10;
 
@@ -407,6 +408,21 @@ export default function ImportHouzezXml() {
     const n = parseInt(limit, 10);
     return Number.isFinite(n) && n > 0 ? parsed.slice(0, n) : parsed;
   })();
+
+  const validation = (() => {
+    if (!effectiveList) return null;
+    let withErrors = 0, withWarnings = 0, ok = 0;
+    for (const p of effectiveList) {
+      const hasErr = p._issues.some(i => i.severity === 'error');
+      const hasWarn = p._issues.some(i => i.severity === 'warning');
+      if (hasErr) withErrors++;
+      else if (hasWarn) withWarnings++;
+      else ok++;
+    }
+    return { ok, withErrors, withWarnings };
+  })();
+
+  const canImport = !!validation && (validation.withErrors === 0 || forceImport);
 
   const handleParse = async () => {
     if (!file) return;
