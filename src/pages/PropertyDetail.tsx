@@ -562,9 +562,27 @@ export default function PropertyDetail() {
             <div className="space-y-6">
               <Card>
                 <CardContent className="pt-6">
-                  <p className="text-3xl font-bold gradient-text mb-4">
+                  <p className="text-3xl font-bold gradient-text mb-1">
                     {formatPrice(property.price_range_min, property.price_range_max)}
                   </p>
+                  {property.price_label && (
+                    <p className="text-sm text-muted-foreground mb-4">
+                      {/^\+/.test(property.price_label) ? property.price_label : `(${property.price_label})`}
+                    </p>
+                  )}
+                  {!property.price_label && <div className="mb-4" />}
+                  {(() => {
+                    const extra = property.extra_costs as { iptu?: number; condominio?: number; sec_price?: number } | null;
+                    if (!extra) return null;
+                    const fmt = (n: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(n);
+                    return (
+                      <div className="space-y-1 text-sm text-muted-foreground mb-4 border-t pt-3">
+                        {extra.condominio ? <div className="flex justify-between"><span>Condomínio</span><span className="font-medium">{fmt(extra.condominio)}</span></div> : null}
+                        {extra.iptu ? <div className="flex justify-between"><span>IPTU</span><span className="font-medium">{fmt(extra.iptu)}</span></div> : null}
+                        {extra.sec_price ? <div className="flex justify-between"><span>Aluguel/Mensal</span><span className="font-medium">{fmt(extra.sec_price)}</span></div> : null}
+                      </div>
+                    );
+                  })()}
 
                   {!isOwner && (
                     <>
