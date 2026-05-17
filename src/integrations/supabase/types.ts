@@ -355,6 +355,7 @@ export type Database = {
           owner_id: string
           owner_name: string
           owner_phone: string
+          price_label: string | null
           price_range_max: number | null
           price_range_min: number | null
           property_type: Database["public"]["Enums"]["property_type"]
@@ -400,6 +401,7 @@ export type Database = {
           owner_id: string
           owner_name: string
           owner_phone: string
+          price_label?: string | null
           price_range_max?: number | null
           price_range_min?: number | null
           property_type?: Database["public"]["Enums"]["property_type"]
@@ -445,6 +447,7 @@ export type Database = {
           owner_id?: string
           owner_name?: string
           owner_phone?: string
+          price_label?: string | null
           price_range_max?: number | null
           price_range_min?: number | null
           property_type?: Database["public"]["Enums"]["property_type"]

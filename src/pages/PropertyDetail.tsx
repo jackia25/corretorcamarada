@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
+import DOMPurify from 'dompurify';
 import { 
   Building2, 
   MapPin, 
@@ -67,7 +68,8 @@ export default function PropertyDetail() {
       .from('properties')
       .select(`
         id, title, description, property_type, neighborhood, city, state,
-        price_range_min, price_range_max, bedrooms, bathrooms, area_m2,
+        price_range_min, price_range_max, price_label, bedrooms, bathrooms, area_m2,
+        garage_spaces, year_built, latitude, longitude, video_url, virtual_tour_url, extra_costs,
         features, public_photos, is_active, owner_id, created_at, updated_at,
         owner:profiles!properties_owner_id_fkey(id, full_name, creci, avatar_url, city, state)
       `)
@@ -350,7 +352,21 @@ export default function PropertyDetail() {
                   <CardHeader>
                     <CardTitle>Descrição</CardTitle>
                   </CardHeader>
-                  <CardContent>{formatDescription(property.description)}</CardContent>
+                  <CardContent>
+                    {/^\s*<(p|ul|ol|h\d|strong|em|b|i|blockquote|br)/i.test(property.description) ? (
+                      <div
+                        className="prose prose-sm md:prose-base max-w-none text-foreground/90 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-1 [&_p]:my-2 [&_strong]:font-semibold [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:mt-3 [&_h3]:text-base [&_h3]:font-semibold [&_h3]:mt-2"
+                        dangerouslySetInnerHTML={{
+                          __html: DOMPurify.sanitize(property.description, {
+                            ALLOWED_TAGS: ['p','br','ul','ol','li','strong','b','em','i','u','h2','h3','h4','blockquote'],
+                            ALLOWED_ATTR: [],
+                          }),
+                        }}
+                      />
+                    ) : (
+                      formatDescription(property.description)
+                    )}
+                  </CardContent>
                 </Card>
               )}
 
@@ -546,9 +562,27 @@ export default function PropertyDetail() {
             <div className="space-y-6">
               <Card>
                 <CardContent className="pt-6">
-                  <p className="text-3xl font-bold gradient-text mb-4">
+                  <p className="text-3xl font-bold gradient-text mb-1">
                     {formatPrice(property.price_range_min, property.price_range_max)}
                   </p>
+                  {property.price_label && (
+                    <p className="text-sm text-muted-foreground mb-4">
+                      {/^\+/.test(property.price_label) ? property.price_label : `(${property.price_label})`}
+                    </p>
+                  )}
+                  {!property.price_label && <div className="mb-4" />}
+                  {(() => {
+                    const extra = property.extra_costs as { iptu?: number; condominio?: number; sec_price?: number } | null;
+                    if (!extra) return null;
+                    const fmt = (n: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(n);
+                    return (
+                      <div className="space-y-1 text-sm text-muted-foreground mb-4 border-t pt-3">
+                        {extra.condominio ? <div className="flex justify-between"><span>Condomínio</span><span className="font-medium">{fmt(extra.condominio)}</span></div> : null}
+                        {extra.iptu ? <div className="flex justify-between"><span>IPTU</span><span className="font-medium">{fmt(extra.iptu)}</span></div> : null}
+                        {extra.sec_price ? <div className="flex justify-between"><span>Aluguel/Mensal</span><span className="font-medium">{fmt(extra.sec_price)}</span></div> : null}
+                      </div>
+                    );
+                  })()}
 
                   {!isOwner && (
                     <>

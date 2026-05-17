@@ -26,6 +26,7 @@ type Incoming = {
   latitude?: number | null;
   longitude?: number | null;
   price?: number | null;
+  price_label?: string | null;
   area_m2?: number | null;
   land_area_m2?: number | null;
   bedrooms?: number | null;
@@ -96,6 +97,7 @@ serve(async (req) => {
           longitude: p.longitude ?? null,
           price_range_min: price,
           price_range_max: price,
+          price_label: p.price_label || null,
           area_m2: p.area_m2 ?? null,
           land_area_m2: p.land_area_m2 ?? null,
           bedrooms: p.bedrooms ?? null,
