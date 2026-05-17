@@ -1,52 +1,26 @@
 ## Problema
 
-Descrições importadas do Houzez estão salvas como HTML cru (`<strong data-start="...">`, `<ul>`, `<li>`, `&aacute;`, etc.). Quem edita vê uma sopa de tags em vez de texto.
+A imagem 1 (correta) é a seção **Destaques** — grid de 3 colunas com ícone de check, sem caixas. A imagem 2 (errada) é a seção **Descrição**, onde o `formatDescription` envolve **cada bloco** num card com borda (`rounded-lg border bg-muted/30 p-4`), inclusive cada item de lista virou um card separado. Resultado: a lista "Destaques do imóvel" dentro da descrição aparece como uma pilha de caixas.
 
 ## Solução
 
-Converter HTML → texto com markdown leve (`**negrito**`, `- item`, quebras de linha) em 3 pontos:
+Reescrever `formatDescription` em `src/pages/PropertyDetail.tsx` para seguir o mesmo padrão visual da seção Destaques:
 
-### 1. Importação (`src/pages/ImportHouzezXml.tsx`)
-Criar função `htmlToPlainText(html)` que:
-- Substitui `<strong>`/`<b>` por `**texto**`
-- Substitui `<em>`/`<i>` por `*texto*`
-- Substitui `<li>` por `- item\n`
-- Substitui `<p>`, `<br>`, `</div>` por quebras de linha
-- Remove `data-*`, `class`, `style` e qualquer tag restante
-- Decodifica entidades HTML (`&aacute;`→`á`, `&nbsp;`→espaço, `&amp;`→`&`, etc.)
-- Colapsa múltiplas quebras de linha (máx 2 seguidas)
+- **Remover** o wrapper com borda/fundo (`rounded-lg border bg-muted/30 p-4`).
+- **Títulos** (`**Texto:**` em linha própria) → `<h3>` discreto, sem caixa.
+- **Parágrafos** → texto corrido, sem caixa.
+- **Listas com `- `** → renderizar como grid de 1–3 colunas com `CheckCircle2` (mesmo componente, mesmo `strokeWidth={1.5}`, mesma cor `text-primary`) — idêntico à seção Destaques.
+- **Espaçamento** entre seções via `space-y-6` em vez de cards empilhados.
+- Detectar emoji/pin no início da linha (📍, 🏠 etc.) e renderizar inline sem virar bullet.
 
-Aplicar a `description` antes de fazer upsert no banco.
+## Resultado esperado (HZ0007)
 
-### 2. Tela de edição (`src/pages/EditProperty.tsx`)
-Sanitização defensiva: ao carregar o formulário, se a descrição contém `<` seguido de letra, passa pelo mesmo `htmlToPlainText`. Garante que descrições legadas não voltem a aparecer com tags mesmo sem reimportar.
+A descrição vai mostrar:
+- "Destaques do imóvel:" como subtítulo limpo
+- Itens "Área Total", "Quartos", "Pé-direito Duplo"… num grid com checkmark, igual à seção Destaques de cima
+- A linha "📍 Localização privilegiada…" como parágrafo normal
+- Sem caixinhas com borda em volta de cada item
 
-### 3. Limpeza dos 288 imóveis já importados
-Migration única que aplica a mesma conversão via SQL (regex `regexp_replace`) nas descrições existentes onde `description ~ '<[a-z]'`. Função PL/pgSQL roda uma vez e é descartada depois.
+## Arquivo alterado
 
-## Compatibilidade com a tela de detalhes
-
-A tela de detalhes do imóvel já entende `**negrito**` e listas com `- `, então o texto convertido vai renderizar formatado corretamente sem nenhuma mudança extra lá.
-
-## Arquivos alterados
-
-- `src/pages/ImportHouzezXml.tsx` — adicionar `htmlToPlainText` e chamar antes do upsert
-- `src/lib/htmlToPlainText.ts` (novo) — função reutilizável
-- `src/pages/EditProperty.tsx` — sanitização defensiva no load
-- Migration SQL — limpar 288 descrições existentes
-
-## Resultado (exemplo HZ0007)
-
-Antes:
-```
-<strong data-start="260">Condomínio Soho Tamboré</strong>, ideal...
-<ul><li>3 dormitórios</li><li>2 vagas</li></ul>
-```
-
-Depois:
-```
-**Condomínio Soho Tamboré**, ideal...
-
-- 3 dormitórios
-- 2 vagas
-```
+- `src/pages/PropertyDetail.tsx` — apenas a função `formatDescription` (linhas ~232–279). Nenhuma mudança em dados, importação ou banco.
