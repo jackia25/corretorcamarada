@@ -51,6 +51,7 @@ export interface Property {
   latitude?: number | null;
   longitude?: number | null;
   listing_status?: string | null;
+  price_label?: string | null;
   labels?: string[] | null;
   featured_photo?: string | null;
   video_url?: string | null;
