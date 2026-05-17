@@ -66,12 +66,18 @@ serve(async (req) => {
       });
     }
 
-    const results = { imported: 0, updated: 0, errors: [] as string[] };
+    const results = {
+      imported: 0,
+      updated: 0,
+      errors: [] as string[],
+      items: [] as Array<{ source_id: string; id: string | null; status: 'inserted' | 'updated' | 'error'; error?: string }>,
+    };
 
     for (const p of properties) {
       try {
         if (!p.source_id || !p.title) {
           results.errors.push(`Missing source_id or title for "${p.title || p.source_id}"`);
+          results.items.push({ source_id: p.source_id || '', id: null, status: 'error', error: 'missing source_id/title' });
           continue;
         }
 
@@ -123,7 +129,6 @@ serve(async (req) => {
           is_active: true,
         };
 
-        // Check if exists
         const { data: existing } = await supabase
           .from('properties')
           .select('id')
@@ -137,13 +142,20 @@ serve(async (req) => {
             .eq('id', existing.id);
           if (error) throw error;
           results.updated++;
+          results.items.push({ source_id: p.source_id, id: existing.id, status: 'updated' });
         } else {
-          const { error } = await supabase.from('properties').insert(row);
+          const { data: inserted, error } = await supabase
+            .from('properties')
+            .insert(row)
+            .select('id')
+            .single();
           if (error) throw error;
           results.imported++;
+          results.items.push({ source_id: p.source_id, id: inserted?.id ?? null, status: 'inserted' });
         }
       } catch (e) {
         results.errors.push(`${p.source_id || p.title}: ${(e as Error).message}`);
+        results.items.push({ source_id: p.source_id || '', id: null, status: 'error', error: (e as Error).message });
       }
     }
 
