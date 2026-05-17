@@ -28,10 +28,49 @@ import {
   Clock,
   Loader2,
   FileText,
-  Pencil
+  Pencil,
+  Car,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Property, AccessRequest, CooperationAgreement, PROPERTY_TYPE_LABELS, PropertyType } from '@/lib/types';
+
+const LISTING_LABEL: Record<string, string> = {
+  venda: 'À Venda',
+  aluguel: 'Para Alugar',
+  venda_aluguel: 'Venda e Aluguel',
+};
+
+function SectionTitle({ children, right }: { children: React.ReactNode; right?: string }) {
+  return (
+    <div className="flex items-end justify-between gap-4 border-b border-border pb-3">
+      <h2 className="font-display text-xl md:text-2xl font-light tracking-[0.18em] uppercase text-foreground">
+        {children}
+      </h2>
+      {right && <span className="text-xs md:text-sm text-muted-foreground whitespace-nowrap">{right}</span>}
+    </div>
+  );
+}
+
+function OverviewItem({ icon, value, label }: { icon: React.ReactNode; value: React.ReactNode; label: string }) {
+  return (
+    <div className="flex items-center gap-3">
+      <div className="text-muted-foreground">{icon}</div>
+      <div>
+        <div className="text-lg font-medium text-foreground leading-tight">{value}</div>
+        <div className="text-xs text-muted-foreground">{label}</div>
+      </div>
+    </div>
+  );
+}
+
+function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex items-baseline justify-between gap-4 py-3 border-b border-dashed border-border/70 last:border-0">
+      <span className="font-semibold text-foreground">{label}</span>
+      <span className="text-foreground/80 text-right">{value}</span>
+    </div>
+  );
+}
 
 export default function PropertyDetail() {
   const { id } = useParams<{ id: string }>();
@@ -317,45 +356,78 @@ export default function PropertyDetail() {
 
           <div className="grid lg:grid-cols-3 gap-6">
             {/* Main Content */}
-            <div className="lg:col-span-2 space-y-6">
+            <div className="lg:col-span-2 space-y-10">
               <div>
-                <h1 className="text-3xl font-display font-bold mb-2">{property.title}</h1>
-                <p className="text-lg text-muted-foreground flex items-center gap-2">
-                  <MapPin className="h-5 w-5" />
+                <h1 className="text-3xl md:text-4xl font-display font-semibold tracking-tight mb-2">{property.title}</h1>
+                <p className="text-base text-muted-foreground flex items-center gap-2">
+                  <MapPin className="h-4 w-4" />
                   {property.neighborhood}, {property.city} - {property.state}
                 </p>
               </div>
 
-              <div className="flex flex-wrap gap-4">
-                {property.bedrooms && (
-                  <div className="flex items-center gap-2 bg-muted px-4 py-2 rounded-lg">
-                    <BedDouble className="h-5 w-5 text-primary" />
-                    <span>{property.bedrooms} quartos</span>
-                  </div>
-                )}
-                {property.bathrooms && (
-                  <div className="flex items-center gap-2 bg-muted px-4 py-2 rounded-lg">
-                    <Bath className="h-5 w-5 text-primary" />
-                    <span>{property.bathrooms} banheiros</span>
-                  </div>
-                )}
-                {property.area_m2 && (
-                  <div className="flex items-center gap-2 bg-muted px-4 py-2 rounded-lg">
-                    <Maximize2 className="h-5 w-5 text-primary" />
-                    <span>{property.area_m2} m²</span>
-                  </div>
-                )}
-              </div>
+              {/* VISÃO GERAL */}
+              <section>
+                <SectionTitle right={property.external_code ? `ID do imóvel: ${property.external_code}` : undefined}>
+                  Visão Geral
+                </SectionTitle>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-6 py-6">
+                  <OverviewItem
+                    icon={<Building2 className="h-6 w-6" strokeWidth={1.25} />}
+                    value={PROPERTY_TYPE_LABELS[property.property_type as PropertyType]}
+                    label="Tipo de imóvel"
+                  />
+                  {property.bedrooms != null && (
+                    <OverviewItem icon={<BedDouble className="h-6 w-6" strokeWidth={1.25} />} value={property.bedrooms} label="Dormitórios" />
+                  )}
+                  {property.garage_spaces != null && (
+                    <OverviewItem icon={<Car className="h-6 w-6" strokeWidth={1.25} />} value={property.garage_spaces} label="Garagem" />
+                  )}
+                  {property.area_m2 != null && (
+                    <OverviewItem icon={<Maximize2 className="h-6 w-6" strokeWidth={1.25} />} value={`${property.area_m2} m²`} label="Área Construída" />
+                  )}
+                </div>
+              </section>
 
+              {/* DETALHES */}
+              <section>
+                <SectionTitle right={property.updated_at ? `Atualizado em ${new Date(property.updated_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}` : undefined}>
+                  Detalhes
+                </SectionTitle>
+                <div className="bg-secondary/40 rounded-lg p-6 md:p-8 grid md:grid-cols-2 gap-x-12">
+                  {property.external_code && <DetailRow label="ID do imóvel" value={property.external_code} />}
+                  <DetailRow label="Preço" value={formatPrice(property.price_range_min, property.price_range_max)} />
+                  {property.area_m2 != null && <DetailRow label="Área construída" value={`${property.area_m2} m²`} />}
+                  {property.bedrooms != null && <DetailRow label="Dormitórios" value={property.bedrooms} />}
+                  {property.garage_spaces != null && <DetailRow label="Garagem" value={property.garage_spaces} />}
+                  <DetailRow label="Tipo de imóvel" value={PROPERTY_TYPE_LABELS[property.property_type as PropertyType]} />
+                  <DetailRow label="Situação do imóvel" value={LISTING_LABEL[property.listing_status as string] ?? 'À Venda'} />
+                  {property.bathrooms != null && <DetailRow label="Banheiros" value={property.bathrooms} />}
+                </div>
+              </section>
+
+              {/* DESTAQUES */}
+              {property.features && property.features.length > 0 && (
+                <section>
+                  <SectionTitle>Destaques</SectionTitle>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-3 py-6">
+                    {property.features.map((feature, i) => (
+                      <div key={i} className="flex items-center gap-3 text-foreground/90">
+                        <CheckCircle2 className="h-4 w-4 text-primary shrink-0" strokeWidth={1.5} />
+                        <span>{feature}</span>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {/* DESCRIÇÃO */}
               {property.description && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Descrição</CardTitle>
-                  </CardHeader>
-                  <CardContent>
+                <section>
+                  <SectionTitle>Descrição</SectionTitle>
+                  <div className="py-6">
                     {/<(p|ul|ol|h\d|strong|em|b|i|blockquote|br|div|span)[\s>]/i.test(property.description) ? (
                       <div
-                        className="prose prose-sm md:prose-base max-w-none text-foreground/90 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-1 [&_p]:my-2 [&_strong]:font-semibold [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:mt-3 [&_h3]:text-base [&_h3]:font-semibold [&_h3]:mt-2"
+                        className="prose prose-base max-w-none text-foreground/90 leading-relaxed [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-1.5 [&_p]:my-3 [&_strong]:font-semibold [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:mt-4 [&_h3]:text-base [&_h3]:font-semibold [&_h3]:mt-3"
                         dangerouslySetInnerHTML={{
                           __html: DOMPurify.sanitize(property.description, {
                             ALLOWED_TAGS: ['p','br','ul','ol','li','strong','b','em','i','u','h2','h3','h4','blockquote'],
@@ -366,24 +438,20 @@ export default function PropertyDetail() {
                     ) : (
                       formatDescription(property.description)
                     )}
-                  </CardContent>
-                </Card>
+                  </div>
+                </section>
               )}
 
-              {property.features && property.features.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Características</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex flex-wrap gap-2">
-                      {property.features.map((feature, i) => (
-                        <Badge key={i} variant="secondary">{feature}</Badge>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+              {/* LOCALIZAÇÃO */}
+              <section>
+                <SectionTitle>Localização</SectionTitle>
+                <div className="grid md:grid-cols-2 gap-x-12 py-6">
+                  <DetailRow label="Cidade" value={property.city} />
+                  <DetailRow label="Estado/Município" value={property.state} />
+                  {property.neighborhood && <DetailRow label="Bairro" value={property.neighborhood} />}
+                  <DetailRow label="País" value="Brasil" />
+                </div>
+              </section>
 
               {/* Sensitive Data Section */}
               {!isOwner && (
