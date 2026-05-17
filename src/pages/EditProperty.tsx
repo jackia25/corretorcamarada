@@ -16,6 +16,7 @@ import { Lock, Eye, Loader2, ArrowLeft, Camera } from 'lucide-react';
 import { PROPERTY_TYPE_LABELS, BRAZILIAN_STATES, PropertyType } from '@/lib/types';
 import { propertySchema } from '@/lib/validations';
 import { ImageUpload } from '@/components/property/ImageUpload';
+import { htmlToPlainText, looksLikeHtml } from '@/lib/htmlToPlainText';
 
 export default function EditProperty() {
   const { id } = useParams<{ id: string }>();
