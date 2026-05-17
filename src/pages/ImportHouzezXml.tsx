@@ -212,6 +212,8 @@ function parseXML(xmlText: string): { properties: ParsedProperty[]; totalItems: 
       getMeta(item, 'fave_property_subtitle') ||
       getMeta(item, 'fave_propriedade') ||
       getMeta(item, 'fave_property_name') ||
+      getMeta(item, 'fave_condomc3ado') ||     // ← Lemos: custom field "Condomínio" (URL-encoded)
+      getMeta(item, 'fave_condominio_nome') ||
       ''
     ).trim() || null;
     if (iptu) extra.iptu = iptu;
@@ -222,14 +224,30 @@ function parseXML(xmlText: string): { properties: ParsedProperty[]; totalItems: 
     // Price label (postfix): "Venda", "Locação", "Pacote", "+ despesas"
     const priceLabel = (getMeta(item, 'fave_property_price_postfix') || '').trim() || null;
 
-    // Bathrooms — fallback para fave_banheiros (variação Lemos Properties)
-    const bathrooms = int(getMeta(item, 'fave_property_bathrooms')) ?? int(getMeta(item, 'fave_banheiros'));
-    // Suites (suítes) — Houzez expõe como meta separada
-    const suites =
+    // Bathrooms / Suítes — A Lemos Properties renomeia os campos padrão do Houzez:
+    //   `fave_property_bathrooms`  → exibido como "Suíte"
+    //   `fave_banheiros` (custom)  → exibido como "Banheiros"
+    // Se o XML tem `fave_banheiros`, então `fave_property_bathrooms` significa Suíte.
+    // Caso contrário (XML Houzez padrão), `fave_property_bathrooms` é Banheiros mesmo.
+    const banheirosCustom = int(getMeta(item, 'fave_banheiros'));
+    const propBathrooms = int(getMeta(item, 'fave_property_bathrooms'));
+    const explicitSuites =
       int(getMeta(item, 'fave_property_suites')) ??
       int(getMeta(item, 'fave_suites')) ??
       int(getMeta(item, 'fave_suite')) ??
       int(getMeta(item, 'fave_property_suite'));
+
+    let bathrooms: number | null;
+    let suites: number | null;
+    if (banheirosCustom != null) {
+      // Padrão Lemos: banheiros vem do custom, suíte vem do meta padrão
+      bathrooms = banheirosCustom;
+      suites = explicitSuites ?? propBathrooms;
+    } else {
+      // Houzez padrão: bathrooms é bathrooms, suítes só se vier explícito
+      bathrooms = propBathrooms;
+      suites = explicitSuites;
+    }
 
     // Address
     const addr = getMeta(item, 'fave_property_address') || getMeta(item, 'fave_property_map_address') || null;
