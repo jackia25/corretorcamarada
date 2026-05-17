@@ -120,4 +120,4 @@ const unique = new Set(labelsLower);
 eq(unique.size, labels.length, 'sem labels duplicadas');
 
 console.log(`\n${passed} passou, ${failed} falhou`);
-if (failed > 0) process.exit(1);
+if (failed > 0) (globalThis as { process?: { exit: (n: number) => void } }).process?.exit(1);
