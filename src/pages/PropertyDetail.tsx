@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Property, AccessRequest, CooperationAgreement, PROPERTY_TYPE_LABELS, PropertyType } from '@/lib/types';
+import { extractAdditionalSourceFields } from '@/lib/sourceFields';
 
 const LISTING_LABEL: Record<string, string> = {
   venda: 'À Venda',
@@ -428,6 +429,26 @@ export default function PropertyDetail() {
                   );
                 })()}
               </section>
+
+              {/* INFORMAÇÕES ADICIONAIS DA ORIGEM */}
+              {(() => {
+                const extras = extractAdditionalSourceFields(property.source_payload as Record<string, unknown> | null);
+                if (extras.length === 0) return null;
+                return (
+                  <section>
+                    <SectionTitle>Informações Adicionais</SectionTitle>
+                    <div className="bg-secondary/40 rounded-lg px-8 md:px-12 py-6 grid md:grid-cols-2 gap-x-16">
+                      {extras.map((f) => (
+                        <DetailRow
+                          key={f.key}
+                          label={f.label}
+                          value={Array.isArray(f.value) ? f.value.join(', ') : f.value}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                );
+              })()}
 
               {/* DESTAQUES */}
               {property.features && property.features.length > 0 && (
