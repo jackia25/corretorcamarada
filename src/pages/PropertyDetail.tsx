@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Property, AccessRequest, CooperationAgreement, PROPERTY_TYPE_LABELS, PropertyType } from '@/lib/types';
+import { extractAdditionalSourceFields } from '@/lib/sourceFields';
 
 const LISTING_LABEL: Record<string, string> = {
   venda: 'À Venda',
