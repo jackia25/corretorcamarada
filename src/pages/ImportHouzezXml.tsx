@@ -268,8 +268,15 @@ export default function ImportHouzezXml() {
   const [imported, setImported] = useState(0);
   const [updated, setUpdated] = useState(0);
   const [errors, setErrors] = useState<string[]>([]);
+  const [limit, setLimit] = useState<string>('');
 
   const BATCH = 10;
+
+  const effectiveList = (() => {
+    if (!parsed) return null;
+    const n = parseInt(limit, 10);
+    return Number.isFinite(n) && n > 0 ? parsed.slice(0, n) : parsed;
+  })();
 
   const handleParse = async () => {
     if (!file) return;
