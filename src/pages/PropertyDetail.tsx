@@ -409,6 +409,7 @@ export default function PropertyDetail() {
                   const condoValue = typeof extra.condominio === 'number' ? extra.condominio : null;
                   const iptuValue = typeof extra.iptu === 'number' ? extra.iptu : null;
                   const brl = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v);
+                  const extras = extractAdditionalSourceFields(property.source_payload as Record<string, unknown> | null);
                   return (
                     <div className="bg-secondary/40 rounded-lg px-8 md:px-12 py-6 grid md:grid-cols-2 gap-x-16">
                       {property.external_code && <DetailRow label="ID do imóvel" value={property.external_code} />}
@@ -425,19 +426,6 @@ export default function PropertyDetail() {
                       {iptuValue != null && <DetailRow label="IPTU" value={brl(iptuValue)} />}
                       {property.land_area_m2 != null && <DetailRow label="Área do terreno" value={`${property.land_area_m2} m²`} />}
                       {property.year_built != null && <DetailRow label="Ano de construção" value={property.year_built} />}
-                    </div>
-                  );
-                })()}
-              </section>
-
-              {/* INFORMAÇÕES ADICIONAIS DA ORIGEM */}
-              {(() => {
-                const extras = extractAdditionalSourceFields(property.source_payload as Record<string, unknown> | null);
-                if (extras.length === 0) return null;
-                return (
-                  <section>
-                    <SectionTitle>Informações Adicionais</SectionTitle>
-                    <div className="bg-secondary/40 rounded-lg px-8 md:px-12 py-6 grid md:grid-cols-2 gap-x-16">
                       {extras.map((f) => (
                         <DetailRow
                           key={f.key}
@@ -446,9 +434,10 @@ export default function PropertyDetail() {
                         />
                       ))}
                     </div>
-                  </section>
-                );
-              })()}
+                  );
+                })()}
+              </section>
+
 
               {/* DESTAQUES */}
               {property.features && property.features.length > 0 && (
