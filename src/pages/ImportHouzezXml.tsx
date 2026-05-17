@@ -31,6 +31,7 @@ type ParsedProperty = {
   land_area_m2: number | null;
   bedrooms: number | null;
   bathrooms: number | null;
+  suites: number | null;
   garage_spaces: number | null;
   year_built: number | null;
   features: string[] | null;
