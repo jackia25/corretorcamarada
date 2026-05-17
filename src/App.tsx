@@ -53,6 +53,7 @@ const App = () => (
             <Route path="/reports" element={<ProtectedRoute><CrossingReports /></ProtectedRoute>} />
             <Route path="/logs" element={<ProtectedRoute><Logs /></ProtectedRoute>} />
             <Route path="/import" element={<ProtectedRoute><ImportProperties /></ProtectedRoute>} />
+            <Route path="/import-xml" element={<ProtectedRoute><ImportHouzezXml /></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
             
             <Route path="*" element={<NotFound />} />
