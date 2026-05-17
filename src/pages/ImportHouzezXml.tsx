@@ -276,6 +276,76 @@ function parseXML(xmlText: string): { properties: ParsedProperty[]; totalItems: 
 
     const rawDesc = text(item.getElementsByTagName('content:encoded')[0]);
 
+    const raw: RawSnapshot = {
+      fave_property_bathrooms: getMeta(item, 'fave_property_bathrooms'),
+      fave_banheiros: getMeta(item, 'fave_banheiros'),
+      fave_property_bedrooms: getMeta(item, 'fave_property_bedrooms'),
+      fave_property_garage: getMeta(item, 'fave_property_garage'),
+      fave_property_size: getMeta(item, 'fave_property_size'),
+      fave_property_price: getMeta(item, 'fave_property_price'),
+      fave_property_id: externalCode || '',
+      condo_name_raw: getMeta(item, 'fave_condomc3ado') || getMeta(item, 'fave_property_subtitle') || '',
+      condo_value_raw: getMeta(item, 'fave_valor-do-condomc3adnio') || getMeta(item, 'fave_property_condominio') || '',
+      iptu_raw: getMeta(item, 'fave_iptu') || getMeta(item, 'fave_property_iptu') || '',
+      suites_raw:
+        getMeta(item, 'fave_property_suites') ||
+        getMeta(item, 'fave_suites') ||
+        getMeta(item, 'fave_suite') ||
+        getMeta(item, 'fave_property_suite') ||
+        '',
+    };
+
+    // ── Validação de paridade (origem vs destino) ──
+    const issues: ValidationIssue[] = [];
+    const check = (cond: boolean, severity: 'error' | 'warning', field: string, message: string) => {
+      if (!cond) issues.push({ severity, field, message });
+    };
+
+    if (!externalCode) issues.push({ severity: 'error', field: 'external_code', message: 'ID externo (HZxxxx) ausente na origem' });
+
+    // Suíte: se existir banheiros custom e fave_property_bathrooms tiver valor, a suíte salva tem que bater
+    if (banheirosCustom != null && propBathrooms != null && propBathrooms > 0) {
+      check(suites === propBathrooms, 'error', 'suites',
+        `Origem tem fave_property_bathrooms=${propBathrooms} (= Suíte no padrão Lemos) mas será salvo como suítes=${suites}`);
+    }
+    // Suíte explícita: tem que bater
+    if (explicitSuites != null) {
+      check(suites === explicitSuites, 'error', 'suites',
+        `Origem tem suítes=${explicitSuites} mas será salvo como ${suites}`);
+    }
+    // Banheiros
+    if (banheirosCustom != null) {
+      check(bathrooms === banheirosCustom, 'error', 'bathrooms',
+        `Origem tem fave_banheiros=${banheirosCustom} mas será salvo como banheiros=${bathrooms}`);
+    }
+    // Dormitórios
+    const rawBedrooms = int(raw.fave_property_bedrooms);
+    if (rawBedrooms != null) {
+      check(rawBedrooms === int(String(0)) || rawBedrooms === (int(raw.fave_property_bedrooms)),
+        'error', 'bedrooms', `Dormitórios diferentes da origem`);
+    }
+    // Preço
+    const rawPrice = num(raw.fave_property_price);
+    if (rawPrice != null && rawPrice > 0) {
+      check(num(raw.fave_property_price) === rawPrice, 'error', 'price', 'Preço difere da origem');
+    }
+    // Nome do condomínio: se a meta for texto (não-numérico), tem que cair em condo_name
+    if (raw.condo_name_raw && isNaN(Number(raw.condo_name_raw.replace(/[^\d.,-]/g, '').replace(',', '.')))) {
+      const savedName = typeof (extra.condo_name) === 'string' ? extra.condo_name : null;
+      check(!!savedName, 'warning', 'condo_name',
+        `Nome do condomínio "${raw.condo_name_raw}" presente na origem mas não foi salvo`);
+    }
+    // Valor do condomínio: se for numérico na origem, tem que cair em extra.condominio
+    const rawCondoValue = num(raw.condo_value_raw);
+    if (rawCondoValue != null && rawCondoValue > 0) {
+      check(extra.condominio === rawCondoValue, 'warning', 'condominio',
+        `Valor do condomínio da origem (${rawCondoValue}) não corresponde ao salvo (${String(extra.condominio ?? 'nada')})`);
+    }
+    // Fotos
+    if (ids.length > 0) {
+      check(photos.length > 0, 'warning', 'photos', `${ids.length} fotos referenciadas mas nenhuma resolvida (anexos faltando no XML)`);
+    }
+
     properties.push({
       source_id: `houzez:wp${postId}`,
       external_code: externalCode,
@@ -310,6 +380,8 @@ function parseXML(xmlText: string): { properties: ParsedProperty[]; totalItems: 
       source_url: text(item.getElementsByTagName('link')[0]) || null,
       source_published_at: pubISO,
       internal_notes: getMeta(item, 'fave_private_note') || null,
+      _raw: raw,
+      _issues: issues,
     });
   }
 
