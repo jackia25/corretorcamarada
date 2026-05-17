@@ -140,9 +140,14 @@ function parseXML(xmlText: string): { properties: ParsedProperty[]; totalItems: 
     const externalCode = getMeta(item, 'fave_property_id') || null;
     const title = text(item.getElementsByTagName('title')[0]);
 
-    // Photos: fave_property_images is a serialized PHP array of attachment IDs
-    const imagesRaw = getMeta(item, 'fave_property_images');
-    const ids = imagesRaw.match(/\d+/g) || [];
+    // Photos: Houzez stores ONE attachment ID per <wp:postmeta> entry with key 'fave_property_images'
+    // (NOT a serialized PHP array). May also contain fallback serialized IDs.
+    const imagesRawList = getMetaAll(item, 'fave_property_images');
+    const ids: string[] = [];
+    for (const raw of imagesRawList) {
+      const matches = raw.match(/\d+/g) || [];
+      for (const m of matches) if (!ids.includes(m)) ids.push(m);
+    }
     const photos: string[] = [];
     for (const id of ids) {
       const url = attachmentMap.get(id);
