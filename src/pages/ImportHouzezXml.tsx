@@ -74,6 +74,19 @@ function getMeta(item: Element, key: string): string {
   return '';
 }
 
+function getMetaAll(item: Element, key: string): string[] {
+  const metas = item.getElementsByTagName('wp:postmeta');
+  const out: string[] = [];
+  for (let i = 0; i < metas.length; i++) {
+    const k = text(metas[i].getElementsByTagName('wp:meta_key')[0]);
+    if (k === key) {
+      const v = text(metas[i].getElementsByTagName('wp:meta_value')[0]);
+      if (v) out.push(v);
+    }
+  }
+  return out;
+}
+
 function getCategories(item: Element, domain: string): string[] {
   const cats = item.getElementsByTagName('category');
   const out: string[] = [];
