@@ -453,7 +453,7 @@ export default function ImportHouzezXml() {
     const errs: string[] = [];
 
     for (let i = 0; i < list.length; i += BATCH) {
-      const batch = list.slice(i, i + BATCH);
+      const batch = list.slice(i, i + BATCH).map(({ _raw, _issues, ...rest }) => rest);
       try {
         const { data, error } = await supabase.functions.invoke('import-houzez-xml', {
           body: { properties: batch },
