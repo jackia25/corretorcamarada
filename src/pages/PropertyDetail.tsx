@@ -353,7 +353,7 @@ export default function PropertyDetail() {
                     <CardTitle>Descrição</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    {/^\s*<(p|ul|ol|h\d|strong|em|b|i|blockquote|br)/i.test(property.description) ? (
+                    {/<(p|ul|ol|h\d|strong|em|b|i|blockquote|br|div|span)[\s>]/i.test(property.description) ? (
                       <div
                         className="prose prose-sm md:prose-base max-w-none text-foreground/90 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-1 [&_p]:my-2 [&_strong]:font-semibold [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:mt-3 [&_h3]:text-base [&_h3]:font-semibold [&_h3]:mt-2"
                         dangerouslySetInnerHTML={{
