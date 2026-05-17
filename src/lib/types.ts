@@ -44,6 +44,22 @@ export interface Property {
   sensitive_photos: string[] | null;
   documents: string[] | null;
   internal_notes: string | null;
+  // Campos estendidos (paridade Houzez)
+  land_area_m2?: number | null;
+  garage_spaces?: number | null;
+  year_built?: number | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  listing_status?: string | null;
+  labels?: string[] | null;
+  featured_photo?: string | null;
+  video_url?: string | null;
+  virtual_tour_url?: string | null;
+  external_code?: string | null;
+  extra_costs?: Record<string, unknown> | null;
+  source_published_at?: string | null;
+  source_url?: string | null;
+  source_id?: string | null;
   created_at: string;
   updated_at: string;
   // Joined data

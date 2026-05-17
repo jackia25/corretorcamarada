@@ -336,11 +336,20 @@ export type Database = {
           created_at: string
           description: string | null
           documents: string[] | null
+          external_code: string | null
+          extra_costs: Json | null
+          featured_photo: string | null
           features: string[] | null
           full_address: string
+          garage_spaces: number | null
           id: string
           internal_notes: string | null
           is_active: boolean
+          labels: string[] | null
+          land_area_m2: number | null
+          latitude: number | null
+          listing_status: string | null
+          longitude: number | null
           neighborhood: string
           owner_email: string | null
           owner_id: string
@@ -351,9 +360,15 @@ export type Database = {
           property_type: Database["public"]["Enums"]["property_type"]
           public_photos: string[] | null
           sensitive_photos: string[] | null
+          source_id: string | null
+          source_published_at: string | null
+          source_url: string | null
           state: string
           title: string
           updated_at: string
+          video_url: string | null
+          virtual_tour_url: string | null
+          year_built: number | null
           zip_code: string | null
         }
         Insert: {
@@ -366,11 +381,20 @@ export type Database = {
           created_at?: string
           description?: string | null
           documents?: string[] | null
+          external_code?: string | null
+          extra_costs?: Json | null
+          featured_photo?: string | null
           features?: string[] | null
           full_address: string
+          garage_spaces?: number | null
           id?: string
           internal_notes?: string | null
           is_active?: boolean
+          labels?: string[] | null
+          land_area_m2?: number | null
+          latitude?: number | null
+          listing_status?: string | null
+          longitude?: number | null
           neighborhood: string
           owner_email?: string | null
           owner_id: string
@@ -381,9 +405,15 @@ export type Database = {
           property_type?: Database["public"]["Enums"]["property_type"]
           public_photos?: string[] | null
           sensitive_photos?: string[] | null
+          source_id?: string | null
+          source_published_at?: string | null
+          source_url?: string | null
           state: string
           title: string
           updated_at?: string
+          video_url?: string | null
+          virtual_tour_url?: string | null
+          year_built?: number | null
           zip_code?: string | null
         }
         Update: {
@@ -396,11 +426,20 @@ export type Database = {
           created_at?: string
           description?: string | null
           documents?: string[] | null
+          external_code?: string | null
+          extra_costs?: Json | null
+          featured_photo?: string | null
           features?: string[] | null
           full_address?: string
+          garage_spaces?: number | null
           id?: string
           internal_notes?: string | null
           is_active?: boolean
+          labels?: string[] | null
+          land_area_m2?: number | null
+          latitude?: number | null
+          listing_status?: string | null
+          longitude?: number | null
           neighborhood?: string
           owner_email?: string | null
           owner_id?: string
@@ -411,9 +450,15 @@ export type Database = {
           property_type?: Database["public"]["Enums"]["property_type"]
           public_photos?: string[] | null
           sensitive_photos?: string[] | null
+          source_id?: string | null
+          source_published_at?: string | null
+          source_url?: string | null
           state?: string
           title?: string
           updated_at?: string
+          video_url?: string | null
+          virtual_tour_url?: string | null
+          year_built?: number | null
           zip_code?: string | null
         }
         Relationships: [
