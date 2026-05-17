@@ -340,6 +340,7 @@ export default function ImportHouzezXml() {
   const [errors, setErrors] = useState<string[]>([]);
   const [limit, setLimit] = useState<string>('');
   const [codeFilter, setCodeFilter] = useState<string>('');
+  const [postImportResults, setPostImportResults] = useState<Record<string, { ok: boolean; diffs: ParityDiff[] }>>({});
 
   const BATCH = 10;
 
@@ -355,17 +356,28 @@ export default function ImportHouzezXml() {
     }
     const n = parseInt(limit, 10);
     list = Number.isFinite(n) && n > 0 ? list.slice(0, n) : list;
-    // Roda validador de paridade origem×destino em cada imóvel filtrado
     return list.map((p) => {
       const srcMeta = (p.source_payload?.meta || {}) as Record<string, string | string[]>;
       const srcCats = (p.source_payload?.categories || {}) as Record<string, string[]>;
       const parity = validateSourceParity({ meta: srcMeta, categories: srcCats }, p.source_payload);
-      return { ...p, _parity: parity };
+      const columns = validateColumnCoherence({ meta: srcMeta, categories: srcCats }, {
+        price: p.price, area_m2: p.area_m2, land_area_m2: p.land_area_m2,
+        bedrooms: p.bedrooms, bathrooms: p.bathrooms, garage_spaces: p.garage_spaces,
+        year_built: p.year_built, zip_code: p.zip_code, latitude: p.latitude, longitude: p.longitude,
+        external_code: p.external_code, full_address: p.full_address, address_number: p.address_number,
+        video_url: p.video_url, virtual_tour_url: p.virtual_tour_url, price_label: p.price_label,
+        internal_notes: p.internal_notes, photos: p.photos,
+      });
+      return { ...p, _parity: parity, _columns: columns, _postImport: postImportResults[p.source_id] ?? null };
     });
   })();
 
-  const blockedCount = effectiveList?.filter((p) => p._blocking || (p._parity && !p._parity.ok)).length ?? 0;
+  const blockedCount = effectiveList?.filter(
+    (p) => p._blocking || (p._parity && !p._parity.ok) || (p._columns && p._columns.length > 0),
+  ).length ?? 0;
   const parityFailedCount = effectiveList?.filter((p) => p._parity && !p._parity.ok).length ?? 0;
+  const columnFailedCount = effectiveList?.filter((p) => p._columns && p._columns.length > 0).length ?? 0;
+  const postFailedCount = effectiveList?.filter((p) => p._postImport && !p._postImport.ok).length ?? 0;
 
   const handleParse = async () => {
     if (!file) return;
