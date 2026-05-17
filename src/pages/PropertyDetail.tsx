@@ -222,6 +222,7 @@ export default function PropertyDetail() {
 
   const formatPrice = (min: number | null, max: number | null) => {
     const formatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+    if (min && max && min === max) return formatter.format(min);
     if (min && max) return `${formatter.format(min)} - ${formatter.format(max)}`;
     if (min) return `A partir de ${formatter.format(min)}`;
     if (max) return `Até ${formatter.format(max)}`;
