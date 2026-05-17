@@ -598,6 +598,78 @@ export default function PropertyDetail() {
                 </Card>
               )}
 
+              {/* Owner view - dados originais da importação */}
+              {isOwner && property.source_payload && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Dados da origem</CardTitle>
+                    <CardDescription>
+                      Cópia integral dos campos vindos da importação. Inclui qualquer campo customizado, mesmo que não esteja mapeado nas listagens.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {(() => {
+                      const payload = property.source_payload as {
+                        meta?: Record<string, string | string[]>;
+                        categories?: Record<string, string[]>;
+                        post?: Record<string, unknown>;
+                        source_format?: string;
+                      };
+                      const meta = payload.meta || {};
+                      const categories = payload.categories || {};
+                      const metaKeys = Object.keys(meta).sort();
+                      const catKeys = Object.keys(categories).sort();
+                      const renderVal = (v: string | string[]) =>
+                        Array.isArray(v) ? v.join(' • ') : v;
+                      return (
+                        <div className="space-y-4 text-sm">
+                          {payload.source_format && (
+                            <p className="text-xs text-muted-foreground">
+                              Formato: <code>{payload.source_format}</code>
+                            </p>
+                          )}
+
+                          {catKeys.length > 0 && (
+                            <details open>
+                              <summary className="cursor-pointer font-medium">
+                                Categorias ({catKeys.length})
+                              </summary>
+                              <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1 font-mono text-xs">
+                                {catKeys.map((k) => (
+                                  <div key={k} className="border-b border-border/50 py-1">
+                                    <span className="text-muted-foreground">{k}:</span>{' '}
+                                    <span>{categories[k].join(' • ')}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </details>
+                          )}
+
+                          {metaKeys.length > 0 && (
+                            <details>
+                              <summary className="cursor-pointer font-medium">
+                                Metadados ({metaKeys.length})
+                              </summary>
+                              <div className="mt-2 grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-x-4 gap-y-1 font-mono text-xs max-h-[500px] overflow-auto">
+                                {metaKeys.map((k) => {
+                                  const v = renderVal(meta[k]);
+                                  if (!v) return null;
+                                  return (
+                                    <div key={k} className="contents">
+                                      <div className="text-muted-foreground truncate" title={k}>{k}</div>
+                                      <div className="break-all">{v}</div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </details>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </CardContent>
+                </Card>
+              )}
               {/* Owner view - always show real data */}
               {isOwner && (
                 <Card className="border-primary">
