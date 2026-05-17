@@ -9,6 +9,22 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, Upload, CheckCircle, AlertCircle, FileText } from 'lucide-react';
 import DOMPurify from 'dompurify';
 
+type RawSnapshot = {
+  fave_property_bathrooms: string;
+  fave_banheiros: string;
+  fave_property_bedrooms: string;
+  fave_property_garage: string;
+  fave_property_size: string;
+  fave_property_price: string;
+  fave_property_id: string;
+  condo_name_raw: string;
+  condo_value_raw: string;
+  iptu_raw: string;
+  suites_raw: string;
+};
+
+type ValidationIssue = { severity: 'error' | 'warning'; field: string; message: string };
+
 type ParsedProperty = {
   source_id: string;
   external_code: string | null;
@@ -43,6 +59,8 @@ type ParsedProperty = {
   source_url: string | null;
   source_published_at: string | null;
   internal_notes: string | null;
+  _raw: RawSnapshot;
+  _issues: ValidationIssue[];
 };
 
 function cleanDescription(html: string): string {
