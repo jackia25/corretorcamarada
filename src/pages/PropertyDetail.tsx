@@ -28,10 +28,49 @@ import {
   Clock,
   Loader2,
   FileText,
-  Pencil
+  Pencil,
+  Car,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Property, AccessRequest, CooperationAgreement, PROPERTY_TYPE_LABELS, PropertyType } from '@/lib/types';
+
+const LISTING_LABEL: Record<string, string> = {
+  venda: 'À Venda',
+  aluguel: 'Para Alugar',
+  venda_aluguel: 'Venda e Aluguel',
+};
+
+function SectionTitle({ children, right }: { children: React.ReactNode; right?: string }) {
+  return (
+    <div className="flex items-end justify-between gap-4 border-b border-border pb-3">
+      <h2 className="font-display text-xl md:text-2xl font-light tracking-[0.18em] uppercase text-foreground">
+        {children}
+      </h2>
+      {right && <span className="text-xs md:text-sm text-muted-foreground whitespace-nowrap">{right}</span>}
+    </div>
+  );
+}
+
+function OverviewItem({ icon, value, label }: { icon: React.ReactNode; value: React.ReactNode; label: string }) {
+  return (
+    <div className="flex items-center gap-3">
+      <div className="text-muted-foreground">{icon}</div>
+      <div>
+        <div className="text-lg font-medium text-foreground leading-tight">{value}</div>
+        <div className="text-xs text-muted-foreground">{label}</div>
+      </div>
+    </div>
+  );
+}
+
+function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex items-baseline justify-between gap-4 py-3 border-b border-dashed border-border/70 last:border-0">
+      <span className="font-semibold text-foreground">{label}</span>
+      <span className="text-foreground/80 text-right">{value}</span>
+    </div>
+  );
+}
 
 export default function PropertyDetail() {
   const { id } = useParams<{ id: string }>();
