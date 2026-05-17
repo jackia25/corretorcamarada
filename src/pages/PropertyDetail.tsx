@@ -65,7 +65,7 @@ function OverviewItem({ icon, value, label }: { icon: React.ReactNode; value: Re
 
 function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="flex items-baseline justify-between gap-4 py-3 border-b border-dashed border-border/70 last:border-0">
+    <div className="flex items-baseline justify-between gap-6 py-5 border-b border-dashed border-border/70 last:border-0">
       <span className="font-semibold text-foreground">{label}</span>
       <span className="text-foreground/80 text-right">{value}</span>
     </div>
