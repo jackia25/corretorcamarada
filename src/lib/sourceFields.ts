@@ -308,20 +308,43 @@ const TECHNICAL_KEYS = new Set<string>([
   'houzez_total_property_views', 'houzez_views_by_date',
   'houzez_recently_viewed', 'fave_property_map',
   'fave_property_map_street_view',
+  'fave_property_location', 'fave_loggedintoview',
+  'fave_show_price_placeholder', 'fave_featured',
+  'houzez_featured_listing_date', 'houzez_manual_expire',
+  '_houzez_expiration_date_status', '_elementor_page_assets',
 ]);
 
+// Normaliza variantes hífen/underscore e case (Houzez/Lemos usa as duas)
+export function normalizeKey(key: string): string {
+  return key.toLowerCase().replace(/-/g, '_');
+}
+
+// Mapa de labels normalizado (uma vez, no carregamento) para tolerar hífens
+const NORMALIZED_LABELS: Record<string, string> = (() => {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(LABELS)) out[normalizeKey(k)] = v;
+  return out;
+})();
+const NORMALIZED_SKIP_META = new Set<string>(
+  Array.from(SKIP_META).map((k) => normalizeKey(k))
+);
+const NORMALIZED_TECHNICAL_KEYS = new Set<string>(
+  Array.from(TECHNICAL_KEYS).map((k) => normalizeKey(k))
+);
+
 function isTechnical(key: string): boolean {
-  if (TECHNICAL_KEYS.has(key)) return true;
-  return TECHNICAL_PREFIXES.some((p) => key.startsWith(p));
+  const nk = normalizeKey(key);
+  if (NORMALIZED_TECHNICAL_KEYS.has(nk)) return true;
+  return TECHNICAL_PREFIXES.some((p) => nk.startsWith(normalizeKey(p)));
 }
 
 function isBusinessKey(key: string): boolean {
-  const lk = key.toLowerCase();
+  const lk = normalizeKey(key);
   return BUSINESS_KEYWORDS.some((kw) => lk.includes(kw));
 }
 
 function isLikelyHidden(key: string): boolean {
-  if (SKIP_META.has(key)) return true;
+  if (NORMALIZED_SKIP_META.has(normalizeKey(key))) return true;
   if (isTechnical(key)) return true;
   if (key.startsWith('_')) return true; // WordPress interno
   return false;
@@ -330,9 +353,13 @@ function isLikelyHidden(key: string): boolean {
 // Decide se um campo desconhecido (sem label) deve aparecer.
 // Regra: mostrar somente se for um campo de negócio (label mapeada OU keyword PT-BR).
 function isWhitelisted(key: string): boolean {
-  if (key in LABELS) return true;
+  if (normalizeKey(key) in NORMALIZED_LABELS) return true;
   if (isBusinessKey(key)) return true;
   return false;
+}
+
+function labelFor(key: string): string {
+  return NORMALIZED_LABELS[normalizeKey(key)] || humanizeKey(key);
 }
 
 
