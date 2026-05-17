@@ -9,7 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, Upload, CheckCircle, AlertCircle, FileText } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import { htmlToPlainText } from '@/lib/htmlToPlainText';
-import { validateSourceParity, type ParityDiff } from '@/lib/sourceParity';
+import { validateSourceParity, validateColumnCoherence, type ParityDiff } from '@/lib/sourceParity';
 
 type ParsedProperty = {
   source_id: string;
@@ -48,6 +48,8 @@ type ParsedProperty = {
   source_payload: Record<string, unknown>;
   _blocking: string | null;
   _parity?: { ok: boolean; totalKeys: number; diffs: ParityDiff[] };
+  _columns?: ParityDiff[];
+  _postImport?: { ok: boolean; diffs: ParityDiff[] } | null;
 };
 
 function cleanDescription(html: string): string {
@@ -338,6 +340,7 @@ export default function ImportHouzezXml() {
   const [errors, setErrors] = useState<string[]>([]);
   const [limit, setLimit] = useState<string>('');
   const [codeFilter, setCodeFilter] = useState<string>('');
+  const [postImportResults, setPostImportResults] = useState<Record<string, { ok: boolean; diffs: ParityDiff[] }>>({});
 
   const BATCH = 10;
 
@@ -353,17 +356,28 @@ export default function ImportHouzezXml() {
     }
     const n = parseInt(limit, 10);
     list = Number.isFinite(n) && n > 0 ? list.slice(0, n) : list;
-    // Roda validador de paridade origem×destino em cada imóvel filtrado
     return list.map((p) => {
       const srcMeta = (p.source_payload?.meta || {}) as Record<string, string | string[]>;
       const srcCats = (p.source_payload?.categories || {}) as Record<string, string[]>;
       const parity = validateSourceParity({ meta: srcMeta, categories: srcCats }, p.source_payload);
-      return { ...p, _parity: parity };
+      const columns = validateColumnCoherence({ meta: srcMeta, categories: srcCats }, {
+        price: p.price, area_m2: p.area_m2, land_area_m2: p.land_area_m2,
+        bedrooms: p.bedrooms, bathrooms: p.bathrooms, garage_spaces: p.garage_spaces,
+        year_built: p.year_built, zip_code: p.zip_code, latitude: p.latitude, longitude: p.longitude,
+        external_code: p.external_code, full_address: p.full_address, address_number: p.address_number,
+        video_url: p.video_url, virtual_tour_url: p.virtual_tour_url, price_label: p.price_label,
+        internal_notes: p.internal_notes, photos: p.photos,
+      });
+      return { ...p, _parity: parity, _columns: columns, _postImport: postImportResults[p.source_id] ?? null };
     });
   })();
 
-  const blockedCount = effectiveList?.filter((p) => p._blocking || (p._parity && !p._parity.ok)).length ?? 0;
+  const blockedCount = effectiveList?.filter(
+    (p) => p._blocking || (p._parity && !p._parity.ok) || (p._columns && p._columns.length > 0),
+  ).length ?? 0;
   const parityFailedCount = effectiveList?.filter((p) => p._parity && !p._parity.ok).length ?? 0;
+  const columnFailedCount = effectiveList?.filter((p) => p._columns && p._columns.length > 0).length ?? 0;
+  const postFailedCount = effectiveList?.filter((p) => p._postImport && !p._postImport.ok).length ?? 0;
 
   const handleParse = async () => {
     if (!file) return;
@@ -384,17 +398,28 @@ export default function ImportHouzezXml() {
 
   const handleImport = async () => {
     if (!effectiveList) return;
-    const list = effectiveList.filter((p) => !p._blocking && (!p._parity || p._parity.ok));
+    const list = effectiveList.filter(
+      (p) => !p._blocking && (!p._parity || p._parity.ok) && (!p._columns || p._columns.length === 0),
+    );
     setStep('importing');
     setProgress(0);
     setImported(0);
     setUpdated(0);
     setErrors([]);
+    setPostImportResults({});
     let imp = 0, upd = 0;
     const errs: string[] = [];
+    const postResults: Record<string, { ok: boolean; diffs: ParityDiff[] }> = {};
+
+    // Index XML original por source_id para checagem pós-import
+    const sourceById = new Map(list.map((p) => [p.source_id, {
+      meta: (p.source_payload?.meta || {}) as Record<string, string | string[]>,
+      categories: (p.source_payload?.categories || {}) as Record<string, string[]>,
+    }]));
 
     for (let i = 0; i < list.length; i += BATCH) {
-      const batch = list.slice(i, i + BATCH).map(({ _blocking, _parity, ...rest }) => rest);
+      const batchItems = list.slice(i, i + BATCH);
+      const batch = batchItems.map(({ _blocking, _parity, _columns, _postImport, ...rest }) => rest);
       try {
         const { data, error } = await supabase.functions.invoke('import-houzez-xml', {
           body: { properties: batch },
@@ -403,16 +428,53 @@ export default function ImportHouzezXml() {
         imp += data.imported || 0;
         upd += data.updated || 0;
         if (data.errors?.length) errs.push(...data.errors);
+
+        // Verificação pós-import: relê source_payload do DB e compara com origem
+        const okIds = (data.items || [])
+          .filter((it: { status: string; source_id: string }) => it.status !== 'error')
+          .map((it: { source_id: string }) => it.source_id);
+        if (okIds.length > 0) {
+          const { data: rows, error: readErr } = await supabase
+            .from('properties')
+            .select('source_id, source_payload')
+            .in('source_id', okIds);
+          if (readErr) {
+            errs.push(`Pós-import (lote ${i / BATCH + 1}): ${readErr.message}`);
+          } else {
+            for (const row of rows || []) {
+              const src = sourceById.get(row.source_id as string);
+              if (!src) continue;
+              const dbPayload = row.source_payload as { meta?: Record<string, string | string[]>; categories?: Record<string, string[]> } | null;
+              const parity = validateSourceParity(src, dbPayload);
+              postResults[row.source_id as string] = { ok: parity.ok, diffs: parity.diffs };
+              if (!parity.ok) {
+                errs.push(`${row.source_id}: ${parity.diffs.length} divergência(s) pós-import`);
+              }
+            }
+            // Marcar como ausentes os que não voltaram da query
+            for (const sid of okIds) {
+              if (!postResults[sid]) {
+                postResults[sid] = { ok: false, diffs: [{ key: 'db_row', reason: 'missing_in_payload', expected: sid }] };
+                errs.push(`${sid}: registro não encontrado no DB após import`);
+              }
+            }
+          }
+        }
       } catch (e) {
         errs.push(`Lote ${i / BATCH + 1}: ${(e as Error).message}`);
       }
       setImported(imp);
       setUpdated(upd);
       setErrors([...errs]);
+      setPostImportResults({ ...postResults });
       setProgress(Math.min(100, Math.round(((i + BATCH) / list.length) * 100)));
     }
     setStep('done');
-    toast({ title: 'Importação concluída', description: `${imp} novos, ${upd} atualizados, ${errs.length} erros` });
+    const pf = Object.values(postResults).filter((r) => !r.ok).length;
+    toast({
+      title: 'Importação concluída',
+      description: `${imp} novos, ${upd} atualizados, ${errs.length} erros, ${pf} divergência(s) pós-import`,
+    });
   };
 
   return (
@@ -517,37 +579,78 @@ export default function ImportHouzezXml() {
               )}
 
               {blockedCount > 0 && (
-                <div className="rounded-md border border-yellow-500/50 bg-yellow-500/10 p-3 text-xs">
-                  {blockedCount} imóvel(is) será(ão) ignorado(s): {blockedCount - parityFailedCount} sem ID/título e {parityFailedCount} com divergência de paridade origem×destino.
+                <div className="rounded-md border border-yellow-500/50 bg-yellow-500/10 p-3 text-xs space-y-1">
+                  <div>{blockedCount} imóvel(is) será(ão) ignorado(s):</div>
+                  <ul className="list-disc list-inside pl-2">
+                    {blockedCount - parityFailedCount - columnFailedCount > 0 && (
+                      <li>{blockedCount - parityFailedCount - columnFailedCount} sem ID/título</li>
+                    )}
+                    {parityFailedCount > 0 && <li>{parityFailedCount} com divergência de paridade meta/categories</li>}
+                    {columnFailedCount > 0 && <li>{columnFailedCount} com divergência de coluna mapeada (preço, área, etc.)</li>}
+                  </ul>
                 </div>
               )}
 
-              {parityFailedCount > 0 && effectiveList && (
+              {(parityFailedCount > 0 || columnFailedCount > 0) && effectiveList && (
                 <details className="text-xs rounded-md border border-destructive/50 bg-destructive/5 p-3">
                   <summary className="cursor-pointer font-medium text-destructive">
-                    Ver auditoria de paridade ({parityFailedCount} imóvel(is) com divergência)
+                    Ver auditoria pré-import ({parityFailedCount + columnFailedCount} imóvel(is))
                   </summary>
                   <div className="mt-3 space-y-3 max-h-96 overflow-auto">
-                    {effectiveList.filter((p) => p._parity && !p._parity.ok).map((p) => (
-                      <div key={p.source_id} className="border-b border-border/50 pb-2">
-                        <div className="font-mono font-semibold">
-                          Cód {p.external_code || p.source_id} — {p._parity!.diffs.length}/{p._parity!.totalKeys} divergências
+                    {effectiveList
+                      .filter((p) => (p._parity && !p._parity.ok) || (p._columns && p._columns.length > 0))
+                      .map((p) => {
+                        const allDiffs = [...(p._columns || []), ...(p._parity?.diffs || [])];
+                        return (
+                          <div key={p.source_id} className="border-b border-border/50 pb-2">
+                            <div className="font-mono font-semibold">
+                              Cód {p.external_code || p.source_id} — {allDiffs.length} divergência(s)
+                            </div>
+                            <ul className="mt-1 space-y-0.5 font-mono">
+                              {allDiffs.slice(0, 25).map((d, i) => (
+                                <li key={i} className="text-muted-foreground">
+                                  <span className="text-destructive">{d.reason}</span>{' '}
+                                  <span className="text-foreground">{d.key}</span>{' '}
+                                  esperado=<span className="break-all">{JSON.stringify(d.expected)}</span>
+                                  {d.actual !== undefined && <> achado=<span className="break-all">{JSON.stringify(d.actual)}</span></>}
+                                </li>
+                              ))}
+                              {allDiffs.length > 25 && (
+                                <li className="text-muted-foreground">… e mais {allDiffs.length - 25}</li>
+                              )}
+                            </ul>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </details>
+              )}
+
+              {postFailedCount > 0 && effectiveList && (
+                <details className="text-xs rounded-md border border-destructive/70 bg-destructive/10 p-3">
+                  <summary className="cursor-pointer font-medium text-destructive">
+                    Ver auditoria pós-import ({postFailedCount} imóvel(is) com divergência no DB)
+                  </summary>
+                  <div className="mt-3 space-y-3 max-h-96 overflow-auto">
+                    {effectiveList
+                      .filter((p) => p._postImport && !p._postImport.ok)
+                      .map((p) => (
+                        <div key={p.source_id} className="border-b border-border/50 pb-2">
+                          <div className="font-mono font-semibold">
+                            Cód {p.external_code || p.source_id} — {p._postImport!.diffs.length} divergência(s) DB
+                          </div>
+                          <ul className="mt-1 space-y-0.5 font-mono">
+                            {p._postImport!.diffs.slice(0, 25).map((d, i) => (
+                              <li key={i} className="text-muted-foreground">
+                                <span className="text-destructive">{d.reason}</span>{' '}
+                                <span className="text-foreground">{d.key}</span>{' '}
+                                esperado=<span className="break-all">{JSON.stringify(d.expected)}</span>
+                                {d.actual !== undefined && <> achado=<span className="break-all">{JSON.stringify(d.actual)}</span></>}
+                              </li>
+                            ))}
+                          </ul>
                         </div>
-                        <ul className="mt-1 space-y-0.5 font-mono">
-                          {p._parity!.diffs.slice(0, 20).map((d, i) => (
-                            <li key={i} className="text-muted-foreground">
-                              <span className="text-destructive">{d.reason}</span>{' '}
-                              <span className="text-foreground">{d.key}</span>{' '}
-                              esperado=<span className="break-all">{JSON.stringify(d.expected)}</span>
-                              {d.actual !== undefined && <> achado=<span className="break-all">{JSON.stringify(d.actual)}</span></>}
-                            </li>
-                          ))}
-                          {p._parity!.diffs.length > 20 && (
-                            <li className="text-muted-foreground">… e mais {p._parity!.diffs.length - 20}</li>
-                          )}
-                        </ul>
-                      </div>
-                    ))}
+                      ))}
                   </div>
                 </details>
               )}

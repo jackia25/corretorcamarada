@@ -6,7 +6,7 @@ import { decodeMaybeSerialized, normalizeKey } from './sourceFields';
 
 export type ParityDiff = {
   key: string;          // chave original (origem)
-  reason: 'missing_in_payload' | 'value_mismatch' | 'not_displayed';
+  reason: 'missing_in_payload' | 'value_mismatch' | 'not_displayed' | 'column_mismatch';
   expected: unknown;    // valor da origem
   actual?: unknown;     // valor encontrado no destino (se houver)
 };
@@ -16,6 +16,145 @@ export type ParityResult = {
   totalKeys: number;
   diffs: ParityDiff[];
 };
+
+// ---------- Coerência de colunas mapeadas ----------
+// Para cada coluna derivada do parser, define-se um conjunto de chaves de meta
+// (em ordem de preferência) das quais o valor deve ter sido extraído. Se o
+// valor parseado divergir do que esperaríamos a partir do meta, é divergência.
+
+function numFromString(v: string | undefined | null): number | null {
+  if (v == null || v === '') return null;
+  const n = Number(String(v).replace(/[^\d.,-]/g, '').replace(',', '.'));
+  return Number.isFinite(n) ? n : null;
+}
+function intFromString(v: string | undefined | null): number | null {
+  const n = numFromString(v);
+  return n == null ? null : Math.round(n);
+}
+function firstMeta(meta: Record<string, string | string[]>, keys: string[]): string | null {
+  // Tolera hífen/underscore
+  const norm = new Map<string, string>();
+  for (const [k, v] of Object.entries(meta)) {
+    norm.set(normalizeKey(k), Array.isArray(v) ? (v.find((x) => x && String(x).trim()) ?? v[0] ?? '') : v);
+  }
+  for (const k of keys) {
+    const got = norm.get(normalizeKey(k));
+    if (got != null && String(got).trim() !== '') return String(got);
+  }
+  return null;
+}
+
+export type ColumnSpec = {
+  column: string;
+  expected: unknown;
+  metaKeys: string[];
+  parse?: 'num' | 'int' | 'string';
+};
+
+export function validateColumnCoherence(
+  source: { meta: Record<string, string | string[]>; categories: Record<string, string[]> },
+  parsed: {
+    price: number | null;
+    area_m2: number | null;
+    land_area_m2: number | null;
+    bedrooms: number | null;
+    bathrooms: number | null;
+    garage_spaces: number | null;
+    year_built: number | null;
+    zip_code: string | null;
+    latitude: number | null;
+    longitude: number | null;
+    external_code: string | null;
+    full_address: string | null;
+    address_number: string | null;
+    video_url: string | null;
+    virtual_tour_url: string | null;
+    price_label: string | null;
+    internal_notes: string | null;
+    photos: string[] | null;
+  },
+): ParityDiff[] {
+  const diffs: ParityDiff[] = [];
+
+  const specs: Array<{ key: string; col: keyof typeof parsed; metaKeys: string[]; kind: 'num' | 'int' | 'str' }> = [
+    { key: 'price',           col: 'price',           metaKeys: ['fave_property_price'], kind: 'num' },
+    { key: 'bedrooms',        col: 'bedrooms',        metaKeys: ['fave_property_bedrooms'], kind: 'int' },
+    { key: 'garage_spaces',   col: 'garage_spaces',   metaKeys: ['fave_property_garage'], kind: 'int' },
+    { key: 'year_built',      col: 'year_built',      metaKeys: ['fave_property_year'], kind: 'int' },
+    { key: 'land_area_m2',    col: 'land_area_m2',    metaKeys: ['fave_property_land'], kind: 'num' },
+    { key: 'zip_code',        col: 'zip_code',        metaKeys: ['fave_property_zip'], kind: 'str' },
+    { key: 'video_url',       col: 'video_url',       metaKeys: ['fave_video_url'], kind: 'str' },
+    { key: 'virtual_tour_url',col: 'virtual_tour_url',metaKeys: ['fave_virtual_tour'], kind: 'str' },
+    { key: 'price_label',     col: 'price_label',     metaKeys: ['fave_property_price_postfix'], kind: 'str' },
+    { key: 'internal_notes',  col: 'internal_notes',  metaKeys: ['fave_private_note'], kind: 'str' },
+    { key: 'external_code',   col: 'external_code',   metaKeys: ['fave_property_id'], kind: 'str' },
+    { key: 'full_address',    col: 'full_address',    metaKeys: ['fave_property_address', 'fave_property_map_address'], kind: 'str' },
+    { key: 'address_number',  col: 'address_number',  metaKeys: ['fave_property_address_number'], kind: 'str' },
+    { key: 'latitude',        col: 'latitude',        metaKeys: ['houzez_geolocation_lat'], kind: 'num' },
+    { key: 'longitude',       col: 'longitude',       metaKeys: ['houzez_geolocation_long'], kind: 'num' },
+  ];
+
+  for (const s of specs) {
+    const raw = firstMeta(source.meta, s.metaKeys);
+    const expected =
+      s.kind === 'num' ? numFromString(raw) :
+      s.kind === 'int' ? intFromString(raw) :
+      (raw && raw.trim() !== '' ? raw : null);
+    const actual = parsed[s.col] as unknown;
+    const actualNorm = typeof actual === 'string' && actual.trim() === '' ? null : actual;
+    const expectedNorm = typeof expected === 'string' && expected.trim() === '' ? null : expected;
+    if (JSON.stringify(actualNorm) !== JSON.stringify(expectedNorm)) {
+      diffs.push({
+        key: `column:${s.key}`,
+        reason: 'column_mismatch',
+        expected: expectedNorm,
+        actual: actualNorm,
+      });
+    }
+  }
+
+  // bathrooms: aceita banheiros custom OU property_bathrooms
+  {
+    const banheiros = intFromString(firstMeta(source.meta, ['fave_banheiros']));
+    const propBath = intFromString(firstMeta(source.meta, ['fave_property_bathrooms']));
+    const expected = banheiros != null ? banheiros : propBath;
+    if (expected !== parsed.bathrooms) {
+      diffs.push({ key: 'column:bathrooms', reason: 'column_mismatch', expected, actual: parsed.bathrooms });
+    }
+  }
+
+  // area_m2: fave_property_size com fallback para fave_property_land
+  {
+    const size = numFromString(firstMeta(source.meta, ['fave_property_size']));
+    const land = numFromString(firstMeta(source.meta, ['fave_property_land']));
+    const expected = size != null ? size : land;
+    if (expected !== parsed.area_m2) {
+      diffs.push({ key: 'column:area_m2', reason: 'column_mismatch', expected, actual: parsed.area_m2 });
+    }
+  }
+
+  // photos: toda id de fave_property_images deve ter ao menos uma url no array
+  {
+    const idsRaw = source.meta['fave_property_images'];
+    const ids: string[] = [];
+    if (Array.isArray(idsRaw)) {
+      for (const r of idsRaw) (r.match(/\d+/g) || []).forEach((m) => { if (!ids.includes(m)) ids.push(m); });
+    } else if (typeof idsRaw === 'string') {
+      (idsRaw.match(/\d+/g) || []).forEach((m) => { if (!ids.includes(m)) ids.push(m); });
+    }
+    const got = parsed.photos?.length ?? 0;
+    if (ids.length > 0 && got < ids.length) {
+      diffs.push({
+        key: 'column:photos',
+        reason: 'column_mismatch',
+        expected: `${ids.length} fotos`,
+        actual: `${got} fotos`,
+      });
+    }
+  }
+
+  return diffs;
+}
 
 // Chaves técnicas/internas que NÃO precisam ser refletidas em nenhum lugar
 // visível do destino — bastam estar preservadas em `source_payload.meta`.

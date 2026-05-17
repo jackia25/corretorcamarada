@@ -2,7 +2,7 @@
  * Testes do validador de paridade origem×destino.
  * Roda com: bun run src/lib/sourceParity.test.ts
  */
-import { validateSourceParity } from './sourceParity';
+import { validateSourceParity, validateColumnCoherence } from './sourceParity';
 import { extractAdditionalSourceFields } from './sourceFields';
 
 let passed = 0, failed = 0;
@@ -120,6 +120,37 @@ for (const banned of [
 ]) {
   ok(!labels.includes(banned), `Detalhes NÃO inclui "${banned}"`);
 }
+
+console.log('\n[validateColumnCoherence] — 02336');
+
+// Parsed corretamente (replica o que ImportHouzezXml deve produzir)
+const parsedOk = {
+  price: 6500, area_m2: 52, land_area_m2: 52,
+  bedrooms: 2, bathrooms: 1, garage_spaces: null, year_built: null,
+  zip_code: null, latitude: 25.68654, longitude: -80.431345,
+  external_code: '02336', full_address: null, address_number: null,
+  video_url: null, virtual_tour_url: null, price_label: '+ despesas',
+  internal_notes: 'Abelardo', photos: ['a', 'b', 'c', 'd'],
+};
+const c1 = validateColumnCoherence(source, parsedOk);
+eq(c1, [], 'colunas batem com meta para 02336');
+
+// Mutação: preço errado
+const c2 = validateColumnCoherence(source, { ...parsedOk, price: 9999 });
+ok(c2.some((d) => d.key === 'column:price'), 'detecta preço divergente');
+
+// Mutação: banheiros usando property_bathrooms quando fave_banheiros tem prioridade
+const c3 = validateColumnCoherence(source, { ...parsedOk, bathrooms: 2 });
+ok(c3.some((d) => d.key === 'column:bathrooms'), 'detecta banheiros divergente');
+
+// Mutação: fotos faltando (esperado 4 ids, só 2 urls)
+const c4 = validateColumnCoherence(source, { ...parsedOk, photos: ['a', 'b'] });
+ok(c4.some((d) => d.key === 'column:photos'), 'detecta fotos faltando');
+
+// Mutação: area_m2 sem fallback para land
+const sourceSemSize = { meta: { ...source.meta }, categories: source.categories };
+const c5 = validateColumnCoherence(sourceSemSize, { ...parsedOk, area_m2: null });
+ok(c5.some((d) => d.key === 'column:area_m2'), 'detecta area_m2 ausente quando land=52');
 
 console.log(`\n${passed} passou, ${failed} falhou`);
 if (failed > 0) (globalThis as { process?: { exit: (n: number) => void } }).process?.exit(1);
