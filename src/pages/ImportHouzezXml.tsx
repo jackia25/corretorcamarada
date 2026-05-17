@@ -443,7 +443,7 @@ export default function ImportHouzezXml() {
               <CheckCircle className="mx-auto h-12 w-12 text-green-500 mb-2" />
               <h3 className="text-lg font-semibold">Pronto!</h3>
               <p className="text-muted-foreground">
-                {imported + updated} de {parsed?.length} imóveis sincronizados com sucesso.
+                {imported + updated} de {effectiveList?.length ?? parsed?.length} imóveis sincronizados com sucesso.
               </p>
             </CardContent>
           </Card>
