@@ -189,7 +189,7 @@ function parseXML(xmlText: string): { properties: ParsedProperty[]; totalItems: 
     const pubISO = pubDate ? new Date(pubDate).toISOString() : null;
 
     properties.push({
-      source_id: `houzez:${externalCode || postId}`,
+      source_id: `houzez:wp${postId}`,
       external_code: externalCode,
       title: title || `Imóvel ${externalCode || postId}`,
       description: text(item.getElementsByTagName('content:encoded')[0]) || null,
