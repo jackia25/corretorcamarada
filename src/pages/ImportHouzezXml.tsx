@@ -296,13 +296,18 @@ export default function ImportHouzezXml() {
   };
 
   const handleImport = async () => {
-    if (!parsed) return;
+    if (!effectiveList) return;
+    const list = effectiveList;
     setStep('importing');
+    setProgress(0);
+    setImported(0);
+    setUpdated(0);
+    setErrors([]);
     let imp = 0, upd = 0;
     const errs: string[] = [];
 
-    for (let i = 0; i < parsed.length; i += BATCH) {
-      const batch = parsed.slice(i, i + BATCH);
+    for (let i = 0; i < list.length; i += BATCH) {
+      const batch = list.slice(i, i + BATCH);
       try {
         const { data, error } = await supabase.functions.invoke('import-houzez-xml', {
           body: { properties: batch },
@@ -317,7 +322,7 @@ export default function ImportHouzezXml() {
       setImported(imp);
       setUpdated(upd);
       setErrors([...errs]);
-      setProgress(Math.min(100, Math.round(((i + BATCH) / parsed.length) * 100)));
+      setProgress(Math.min(100, Math.round(((i + BATCH) / list.length) * 100)));
     }
     setStep('done');
     toast({ title: 'Importação concluída', description: `${imp} novos, ${upd} atualizados, ${errs.length} erros` });
