@@ -284,13 +284,57 @@ const SKIP_CATEGORIES = new Set<string>([
   'property_area', 'property_country', 'property_feature', 'property_label',
 ]);
 
+// Palavras-chave (PT-BR) que indicam campo de negócio do imóvel
+const BUSINESS_KEYWORDS = [
+  'garantia', 'permuta', 'proposta', 'prazo', 'finalidade',
+  'orientacao', 'orientação', 'andar', 'andares', 'mobiliad',
+  'animais', 'pet', 'proximidade', 'lazer', 'seguranca', 'segurança',
+  'financiamento', 'iptu', 'condomin', 'condomín', 'aceita',
+  'fundo', 'frente', 'piscina', 'churrasq', 'elevador', 'escritura',
+  'documenta', 'reformad', 'aluguel', 'venda', 'vista', 'sol',
+  'sacada', 'varanda', 'quintal', 'jardim', 'churrasqueira',
+];
+
+// Prefixos/sufixos técnicos do Houzez/WordPress que NUNCA devem ser exibidos
+const TECHNICAL_PREFIXES = [
+  'houzez_', 'fave_single_', 'fave_prop_', 'fave_show_',
+  'fave_agent_', 'fave_top_area', 'fave_content_area', 'fave_sidebar',
+  'fave_header_', 'fave_footer_', 'fave_page_',
+];
+const TECHNICAL_KEYS = new Set<string>([
+  'location', 'agent_display_option', 'fave_agent_display_option',
+  'single_top_area', 'single_content_area', 'fave_single_top_area',
+  'fave_single_content_area', 'prop_homeslider', 'fave_prop_homeslider',
+  'houzez_total_property_views', 'houzez_views_by_date',
+  'houzez_recently_viewed', 'fave_property_map',
+  'fave_property_map_street_view',
+]);
+
+function isTechnical(key: string): boolean {
+  if (TECHNICAL_KEYS.has(key)) return true;
+  return TECHNICAL_PREFIXES.some((p) => key.startsWith(p));
+}
+
+function isBusinessKey(key: string): boolean {
+  const lk = key.toLowerCase();
+  return BUSINESS_KEYWORDS.some((kw) => lk.includes(kw));
+}
+
 function isLikelyHidden(key: string): boolean {
   if (SKIP_META.has(key)) return true;
-  // Convenções WordPress internas (underscore prefix com chaves técnicas)
-  if (key.startsWith('_oembed_')) return true;
-  if (key === '_locale' || key === '_publicize_pending') return true;
+  if (isTechnical(key)) return true;
+  if (key.startsWith('_')) return true; // WordPress interno
   return false;
 }
+
+// Decide se um campo desconhecido (sem label) deve aparecer.
+// Regra: mostrar somente se for um campo de negócio (label mapeada OU keyword PT-BR).
+function isWhitelisted(key: string): boolean {
+  if (key in LABELS) return true;
+  if (isBusinessKey(key)) return true;
+  return false;
+}
+
 
 function formatValue(v: unknown): string | string[] | null {
   if (v == null) return null;
