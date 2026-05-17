@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, Upload, CheckCircle, AlertCircle, FileText } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import { htmlToPlainText } from '@/lib/htmlToPlainText';
+import { validateSourceParity, type ParityDiff } from '@/lib/sourceParity';
 
 type ParsedProperty = {
   source_id: string;
