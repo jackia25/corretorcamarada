@@ -398,17 +398,28 @@ export default function ImportHouzezXml() {
 
   const handleImport = async () => {
     if (!effectiveList) return;
-    const list = effectiveList.filter((p) => !p._blocking && (!p._parity || p._parity.ok));
+    const list = effectiveList.filter(
+      (p) => !p._blocking && (!p._parity || p._parity.ok) && (!p._columns || p._columns.length === 0),
+    );
     setStep('importing');
     setProgress(0);
     setImported(0);
     setUpdated(0);
     setErrors([]);
+    setPostImportResults({});
     let imp = 0, upd = 0;
     const errs: string[] = [];
+    const postResults: Record<string, { ok: boolean; diffs: ParityDiff[] }> = {};
+
+    // Index XML original por source_id para checagem pós-import
+    const sourceById = new Map(list.map((p) => [p.source_id, {
+      meta: (p.source_payload?.meta || {}) as Record<string, string | string[]>,
+      categories: (p.source_payload?.categories || {}) as Record<string, string[]>,
+    }]));
 
     for (let i = 0; i < list.length; i += BATCH) {
-      const batch = list.slice(i, i + BATCH).map(({ _blocking, _parity, ...rest }) => rest);
+      const batchItems = list.slice(i, i + BATCH);
+      const batch = batchItems.map(({ _blocking, _parity, _columns, _postImport, ...rest }) => rest);
       try {
         const { data, error } = await supabase.functions.invoke('import-houzez-xml', {
           body: { properties: batch },
@@ -417,16 +428,53 @@ export default function ImportHouzezXml() {
         imp += data.imported || 0;
         upd += data.updated || 0;
         if (data.errors?.length) errs.push(...data.errors);
+
+        // Verificação pós-import: relê source_payload do DB e compara com origem
+        const okIds = (data.items || [])
+          .filter((it: { status: string; source_id: string }) => it.status !== 'error')
+          .map((it: { source_id: string }) => it.source_id);
+        if (okIds.length > 0) {
+          const { data: rows, error: readErr } = await supabase
+            .from('properties')
+            .select('source_id, source_payload')
+            .in('source_id', okIds);
+          if (readErr) {
+            errs.push(`Pós-import (lote ${i / BATCH + 1}): ${readErr.message}`);
+          } else {
+            for (const row of rows || []) {
+              const src = sourceById.get(row.source_id as string);
+              if (!src) continue;
+              const dbPayload = row.source_payload as { meta?: Record<string, string | string[]>; categories?: Record<string, string[]> } | null;
+              const parity = validateSourceParity(src, dbPayload);
+              postResults[row.source_id as string] = { ok: parity.ok, diffs: parity.diffs };
+              if (!parity.ok) {
+                errs.push(`${row.source_id}: ${parity.diffs.length} divergência(s) pós-import`);
+              }
+            }
+            // Marcar como ausentes os que não voltaram da query
+            for (const sid of okIds) {
+              if (!postResults[sid]) {
+                postResults[sid] = { ok: false, diffs: [{ key: 'db_row', reason: 'missing_in_payload', expected: sid }] };
+                errs.push(`${sid}: registro não encontrado no DB após import`);
+              }
+            }
+          }
+        }
       } catch (e) {
         errs.push(`Lote ${i / BATCH + 1}: ${(e as Error).message}`);
       }
       setImported(imp);
       setUpdated(upd);
       setErrors([...errs]);
+      setPostImportResults({ ...postResults });
       setProgress(Math.min(100, Math.round(((i + BATCH) / list.length) * 100)));
     }
     setStep('done');
-    toast({ title: 'Importação concluída', description: `${imp} novos, ${upd} atualizados, ${errs.length} erros` });
+    const pf = Object.values(postResults).filter((r) => !r.ok).length;
+    toast({
+      title: 'Importação concluída',
+      description: `${imp} novos, ${upd} atualizados, ${errs.length} erros, ${pf} divergência(s) pós-import`,
+    });
   };
 
   return (
