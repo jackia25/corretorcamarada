@@ -371,7 +371,7 @@ export default function PropertyDetail() {
                 <SectionTitle right={property.external_code ? `ID do imóvel: ${property.external_code}` : undefined}>
                   Visão Geral
                 </SectionTitle>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-6 py-6">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-6 py-6">
                   <OverviewItem
                     icon={<Building2 className="h-6 w-6" strokeWidth={1.25} />}
                     value={PROPERTY_TYPE_LABELS[property.property_type as PropertyType]}
@@ -380,8 +380,11 @@ export default function PropertyDetail() {
                   {property.bedrooms != null && (
                     <OverviewItem icon={<BedDouble className="h-6 w-6" strokeWidth={1.25} />} value={property.bedrooms} label="Dormitórios" />
                   )}
+                  {property.suites != null && property.suites > 0 && (
+                    <OverviewItem icon={<ShowerHead className="h-6 w-6" strokeWidth={1.25} />} value={property.suites} label={property.suites === 1 ? 'Suíte' : 'Suítes'} />
+                  )}
                   {property.garage_spaces != null && (
-                    <OverviewItem icon={<Car className="h-6 w-6" strokeWidth={1.25} />} value={property.garage_spaces} label="Garagem" />
+                    <OverviewItem icon={<Car className="h-6 w-6" strokeWidth={1.25} />} value={property.garage_spaces} label={property.garage_spaces === 1 ? 'Garagem' : 'Garagens'} />
                   )}
                   {property.area_m2 != null && (
                     <OverviewItem icon={<Maximize2 className="h-6 w-6" strokeWidth={1.25} />} value={`${property.area_m2} m²`} label="Área Construída" />
@@ -394,16 +397,31 @@ export default function PropertyDetail() {
                 <SectionTitle right={property.updated_at ? `Atualizado em ${new Date(property.updated_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}` : undefined}>
                   Detalhes
                 </SectionTitle>
-                <div className="bg-secondary/40 rounded-lg px-8 md:px-12 py-6 grid md:grid-cols-2 gap-x-16">
-                  {property.external_code && <DetailRow label="ID do imóvel" value={property.external_code} />}
-                  <DetailRow label="Preço" value={formatPrice(property.price_range_min, property.price_range_max)} />
-                  {property.area_m2 != null && <DetailRow label="Área construída" value={`${property.area_m2} m²`} />}
-                  {property.bedrooms != null && <DetailRow label="Dormitórios" value={property.bedrooms} />}
-                  {property.garage_spaces != null && <DetailRow label="Garagem" value={property.garage_spaces} />}
-                  <DetailRow label="Tipo de imóvel" value={PROPERTY_TYPE_LABELS[property.property_type as PropertyType]} />
-                  <DetailRow label="Situação do imóvel" value={LISTING_LABEL[property.listing_status as string] ?? 'À Venda'} />
-                  {property.bathrooms != null && <DetailRow label="Banheiros" value={property.bathrooms} />}
-                </div>
+                {(() => {
+                  const extra = (property.extra_costs ?? {}) as Record<string, unknown>;
+                  const condoName = typeof extra.condo_name === 'string' ? extra.condo_name : null;
+                  const condoValue = typeof extra.condominio === 'number' ? extra.condominio : null;
+                  const iptuValue = typeof extra.iptu === 'number' ? extra.iptu : null;
+                  const brl = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v);
+                  return (
+                    <div className="bg-secondary/40 rounded-lg px-8 md:px-12 py-6 grid md:grid-cols-2 gap-x-16">
+                      {property.external_code && <DetailRow label="ID do imóvel" value={property.external_code} />}
+                      <DetailRow label="Preço" value={formatPrice(property.price_range_min, property.price_range_max)} />
+                      {property.area_m2 != null && <DetailRow label="Área construída" value={`${property.area_m2} m²`} />}
+                      {property.bedrooms != null && <DetailRow label="Dormitórios" value={property.bedrooms} />}
+                      {property.suites != null && property.suites > 0 && <DetailRow label={property.suites === 1 ? 'Suíte' : 'Suítes'} value={property.suites} />}
+                      {property.garage_spaces != null && <DetailRow label={property.garage_spaces === 1 ? 'Garagem' : 'Garagens'} value={property.garage_spaces} />}
+                      <DetailRow label="Tipo de imóvel" value={PROPERTY_TYPE_LABELS[property.property_type as PropertyType]} />
+                      <DetailRow label="Situação do imóvel" value={LISTING_LABEL[property.listing_status as string] ?? 'À Venda'} />
+                      {condoName && <DetailRow label="Propriedade" value={condoName} />}
+                      {condoValue != null && <DetailRow label="Valor do Condomínio" value={brl(condoValue)} />}
+                      {property.bathrooms != null && <DetailRow label="Banheiros" value={property.bathrooms} />}
+                      {iptuValue != null && <DetailRow label="IPTU" value={brl(iptuValue)} />}
+                      {property.land_area_m2 != null && <DetailRow label="Área do terreno" value={`${property.land_area_m2} m²`} />}
+                      {property.year_built != null && <DetailRow label="Ano de construção" value={property.year_built} />}
+                    </div>
+                  );
+                })()}
               </section>
 
               {/* DESTAQUES */}
