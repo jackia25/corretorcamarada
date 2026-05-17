@@ -65,7 +65,7 @@ function OverviewItem({ icon, value, label }: { icon: React.ReactNode; value: Re
 
 function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="flex items-baseline justify-between gap-4 py-3 border-b border-dashed border-border/70 last:border-0">
+    <div className="flex items-baseline justify-between gap-6 py-5 border-b border-dashed border-border/70 last:border-0">
       <span className="font-semibold text-foreground">{label}</span>
       <span className="text-foreground/80 text-right">{value}</span>
     </div>
@@ -298,7 +298,7 @@ export default function PropertyDetail() {
 
   return (
     <Layout>
-      <div className="container py-8 max-w-4xl">
+      <div className="container py-8 max-w-7xl">
         <div className="flex items-center justify-between mb-4">
           <Button variant="ghost" className="gap-2" onClick={() => navigate('/properties')}>
             <ArrowLeft className="h-4 w-4" />
@@ -393,7 +393,7 @@ export default function PropertyDetail() {
                 <SectionTitle right={property.updated_at ? `Atualizado em ${new Date(property.updated_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}` : undefined}>
                   Detalhes
                 </SectionTitle>
-                <div className="bg-secondary/40 rounded-lg p-6 md:p-8 grid md:grid-cols-2 gap-x-12">
+                <div className="bg-secondary/40 rounded-lg px-8 md:px-12 py-6 grid md:grid-cols-2 gap-x-16">
                   {property.external_code && <DetailRow label="ID do imóvel" value={property.external_code} />}
                   <DetailRow label="Preço" value={formatPrice(property.price_range_min, property.price_range_max)} />
                   {property.area_m2 != null && <DetailRow label="Área construída" value={`${property.area_m2} m²`} />}
