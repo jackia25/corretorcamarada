@@ -632,6 +632,21 @@ export default function ImportHouzezXml() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
+                <label className="text-sm font-medium">Filtrar por código (opcional)</label>
+                <Input
+                  type="text"
+                  placeholder="Ex: HZ0007 ou HZ0007, HZ0012"
+                  value={codeFilter}
+                  onChange={(e) => setCodeFilter(e.target.value)}
+                  disabled={step === 'importing'}
+                  className="max-w-md"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Importa só os imóveis com os códigos informados. Vazio = todos.
+                </p>
+              </div>
+
+              <div className="space-y-2">
                 <label className="text-sm font-medium">Limite de imóveis (opcional)</label>
                 <Input
                   type="number"
@@ -647,7 +662,14 @@ export default function ImportHouzezXml() {
                   Dica: comece com <code>1</code> para validar 1 imóvel antes de rodar o arquivo inteiro.
                 </p>
               </div>
-              <Button onClick={handleImport} disabled={step === 'importing' || !canImport} className="gradient-bg">
+
+              {codeFilter.trim() && effectiveList && effectiveList.length === 0 && (
+                <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+                  Nenhum imóvel encontrado no XML com os códigos informados.
+                </div>
+              )}
+
+              <Button onClick={handleImport} disabled={step === 'importing' || !canImport || (effectiveList?.length ?? 0) === 0} className="gradient-bg">
                 {step === 'importing'
                   ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Importando...</>
                   : <><Upload className="mr-2 h-4 w-4" /> Iniciar importação ({effectiveList?.length ?? parsed.length})</>}
