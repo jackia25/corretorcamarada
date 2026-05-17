@@ -62,6 +62,7 @@ export interface Property {
   source_published_at?: string | null;
   source_url?: string | null;
   source_id?: string | null;
+  source_payload?: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
   // Joined data
