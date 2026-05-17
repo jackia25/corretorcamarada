@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, Upload, CheckCircle, AlertCircle, FileText } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import { htmlToPlainText } from '@/lib/htmlToPlainText';
+import { validateSourceParity, type ParityDiff } from '@/lib/sourceParity';
 
 type ParsedProperty = {
   source_id: string;
@@ -46,6 +47,7 @@ type ParsedProperty = {
   internal_notes: string | null;
   source_payload: Record<string, unknown>;
   _blocking: string | null;
+  _parity?: { ok: boolean; totalKeys: number; diffs: ParityDiff[] };
 };
 
 function cleanDescription(html: string): string {
@@ -300,7 +302,7 @@ function parseXML(xmlText: string): { properties: ParsedProperty[]; totalItems: 
       longitude: num(getMetaFirst(meta, 'houzez_geolocation_long')),
       price: num(getMetaFirst(meta, 'fave_property_price')),
       price_label: priceLabel,
-      area_m2: num(getMetaFirst(meta, 'fave_property_size')),
+      area_m2: num(getMetaFirst(meta, 'fave_property_size')) ?? num(getMetaFirst(meta, 'fave_property_land')),
       land_area_m2: num(getMetaFirst(meta, 'fave_property_land')),
       bedrooms: int(getMetaFirst(meta, 'fave_property_bedrooms')),
       bathrooms,
@@ -350,10 +352,18 @@ export default function ImportHouzezXml() {
       list = list.filter((p) => p.external_code && codes.includes(p.external_code.toUpperCase()));
     }
     const n = parseInt(limit, 10);
-    return Number.isFinite(n) && n > 0 ? list.slice(0, n) : list;
+    list = Number.isFinite(n) && n > 0 ? list.slice(0, n) : list;
+    // Roda validador de paridade origem×destino em cada imóvel filtrado
+    return list.map((p) => {
+      const srcMeta = (p.source_payload?.meta || {}) as Record<string, string | string[]>;
+      const srcCats = (p.source_payload?.categories || {}) as Record<string, string[]>;
+      const parity = validateSourceParity({ meta: srcMeta, categories: srcCats }, p.source_payload);
+      return { ...p, _parity: parity };
+    });
   })();
 
-  const blockedCount = effectiveList?.filter((p) => p._blocking).length ?? 0;
+  const blockedCount = effectiveList?.filter((p) => p._blocking || (p._parity && !p._parity.ok)).length ?? 0;
+  const parityFailedCount = effectiveList?.filter((p) => p._parity && !p._parity.ok).length ?? 0;
 
   const handleParse = async () => {
     if (!file) return;
@@ -374,7 +384,7 @@ export default function ImportHouzezXml() {
 
   const handleImport = async () => {
     if (!effectiveList) return;
-    const list = effectiveList.filter((p) => !p._blocking);
+    const list = effectiveList.filter((p) => !p._blocking && (!p._parity || p._parity.ok));
     setStep('importing');
     setProgress(0);
     setImported(0);
@@ -384,7 +394,7 @@ export default function ImportHouzezXml() {
     const errs: string[] = [];
 
     for (let i = 0; i < list.length; i += BATCH) {
-      const batch = list.slice(i, i + BATCH).map(({ _blocking, ...rest }) => rest);
+      const batch = list.slice(i, i + BATCH).map(({ _blocking, _parity, ...rest }) => rest);
       try {
         const { data, error } = await supabase.functions.invoke('import-houzez-xml', {
           body: { properties: batch },
@@ -508,8 +518,38 @@ export default function ImportHouzezXml() {
 
               {blockedCount > 0 && (
                 <div className="rounded-md border border-yellow-500/50 bg-yellow-500/10 p-3 text-xs">
-                  {blockedCount} imóvel(is) será(ão) ignorado(s) por estarem sem ID externo ou título.
+                  {blockedCount} imóvel(is) será(ão) ignorado(s): {blockedCount - parityFailedCount} sem ID/título e {parityFailedCount} com divergência de paridade origem×destino.
                 </div>
+              )}
+
+              {parityFailedCount > 0 && effectiveList && (
+                <details className="text-xs rounded-md border border-destructive/50 bg-destructive/5 p-3">
+                  <summary className="cursor-pointer font-medium text-destructive">
+                    Ver auditoria de paridade ({parityFailedCount} imóvel(is) com divergência)
+                  </summary>
+                  <div className="mt-3 space-y-3 max-h-96 overflow-auto">
+                    {effectiveList.filter((p) => p._parity && !p._parity.ok).map((p) => (
+                      <div key={p.source_id} className="border-b border-border/50 pb-2">
+                        <div className="font-mono font-semibold">
+                          Cód {p.external_code || p.source_id} — {p._parity!.diffs.length}/{p._parity!.totalKeys} divergências
+                        </div>
+                        <ul className="mt-1 space-y-0.5 font-mono">
+                          {p._parity!.diffs.slice(0, 20).map((d, i) => (
+                            <li key={i} className="text-muted-foreground">
+                              <span className="text-destructive">{d.reason}</span>{' '}
+                              <span className="text-foreground">{d.key}</span>{' '}
+                              esperado=<span className="break-all">{JSON.stringify(d.expected)}</span>
+                              {d.actual !== undefined && <> achado=<span className="break-all">{JSON.stringify(d.actual)}</span></>}
+                            </li>
+                          ))}
+                          {p._parity!.diffs.length > 20 && (
+                            <li className="text-muted-foreground">… e mais {p._parity!.diffs.length - 20}</li>
+                          )}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                </details>
               )}
 
               <Button
