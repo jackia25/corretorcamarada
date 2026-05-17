@@ -389,7 +389,8 @@ export function extractAdditionalSourceFields(
   // Metadados adicionais
   for (const [key, rawVal] of Object.entries(meta)) {
     if (isLikelyHidden(key)) continue;
-    if (key.startsWith('_') ) continue; // pula campos técnicos do WordPress
+    if (key.startsWith('_')) continue; // pula campos técnicos do WordPress
+    if (!isWhitelisted(key)) continue; // só campos de negócio / com label conhecido
     const candidates = Array.isArray(rawVal) ? rawVal : [rawVal];
     const decoded = candidates.map((c) => decodeMaybeSerialized(c));
     const single = decoded.length === 1 ? decoded[0] : decoded;
