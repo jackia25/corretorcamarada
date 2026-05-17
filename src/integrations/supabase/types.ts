@@ -362,6 +362,7 @@ export type Database = {
           public_photos: string[] | null
           sensitive_photos: string[] | null
           source_id: string | null
+          source_payload: Json | null
           source_published_at: string | null
           source_url: string | null
           state: string
@@ -409,6 +410,7 @@ export type Database = {
           public_photos?: string[] | null
           sensitive_photos?: string[] | null
           source_id?: string | null
+          source_payload?: Json | null
           source_published_at?: string | null
           source_url?: string | null
           state: string
@@ -456,6 +458,7 @@ export type Database = {
           public_photos?: string[] | null
           sensitive_photos?: string[] | null
           source_id?: string | null
+          source_payload?: Json | null
           source_published_at?: string | null
           source_url?: string | null
           state?: string

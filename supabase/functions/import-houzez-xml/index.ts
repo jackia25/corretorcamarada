@@ -43,6 +43,7 @@ type Incoming = {
   source_url?: string | null;
   source_published_at?: string | null;
   internal_notes?: string | null;
+  source_payload?: Record<string, unknown> | null;
 };
 
 const VALID_TYPES = new Set(['apartamento','casa','terreno','comercial','rural','outro']);
@@ -116,6 +117,7 @@ serve(async (req) => {
           source_url: p.source_url || null,
           source_published_at: p.source_published_at || null,
           internal_notes: p.internal_notes || null,
+          source_payload: p.source_payload || null,
           owner_name: 'A informar',
           owner_phone: 'A informar',
           is_active: true,
