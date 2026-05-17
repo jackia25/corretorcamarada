@@ -384,7 +384,7 @@ export default function ImportHouzezXml() {
 
   const handleImport = async () => {
     if (!effectiveList) return;
-    const list = effectiveList.filter((p) => !p._blocking);
+    const list = effectiveList.filter((p) => !p._blocking && (!p._parity || p._parity.ok));
     setStep('importing');
     setProgress(0);
     setImported(0);
@@ -394,7 +394,7 @@ export default function ImportHouzezXml() {
     const errs: string[] = [];
 
     for (let i = 0; i < list.length; i += BATCH) {
-      const batch = list.slice(i, i + BATCH).map(({ _blocking, ...rest }) => rest);
+      const batch = list.slice(i, i + BATCH).map(({ _blocking, _parity, ...rest }) => rest);
       try {
         const { data, error } = await supabase.functions.invoke('import-houzez-xml', {
           body: { properties: batch },
