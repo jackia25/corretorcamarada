@@ -1,108 +1,48 @@
+## Diagnóstico
 
-## Revisão: alinhar o esquema do Corretor Camarada ao Houzez
+Comparando o imóvel HZ0007 no portal original (imagens) com o nosso, faltam dados e há um cálculo errado:
 
-Boa ideia. Mas em vez de **renomear** o que já existe (quebraria todas as features do Corretor Camarada — handshake, dados sensíveis, acordos, etc.), proponho **estender** a tabela `properties` com as colunas que faltam pra cobrir 100% dos campos Houzez. Assim:
+| Campo origem | Origem | Nosso hoje | Causa |
+|---|---|---|---|
+| Suíte | 1 | **não exibido** | não capturamos `fave_property_suites` / `fave_suites` nem temos coluna `suites` |
+| Banheiros | 2 | 1 | no Houzez, `fave_property_bathrooms`=1 conta **apenas lavabos**; o total exibido pelo site = bathrooms + suites. Precisamos somar (ou exibir os dois separadamente como a origem) |
+| Propriedade (nome do condomínio) | "Condomínio Soho Tamboré" | não exibido | vem de `fave_property_subtitle` ou taxonomy `property_county_state` — precisamos capturar e mostrar |
+| Valor do Condomínio | R$ 1.300 | salvo em `extra_costs.condominio` mas **não exibido** | falta linha no bloco DETALHES |
+| IPTU | (quando houver) | salvo, não exibido | mesma coisa |
 
-- Os 2 lados guardam exatamente a mesma informação
-- Nada que já funciona no Corretor Camarada quebra
-- Você pode auditar imóvel por imóvel comparando campo a campo
+## O que vou fazer
 
-## Análise: o que o Houzez tem que o Corretor Camarada ainda não tem
+**1. Migration** — adicionar coluna `suites integer` em `properties` (nullable, não quebra nada).
 
-| Campo Houzez | Hoje no CC? | Ação |
-|---|---|---|
-| `fave_property_price` | ✅ `price_range_min/max` | usar |
-| `fave_property_size` | ✅ `area_m2` | usar |
-| `fave_property_land` (área terreno) | ❌ | **adicionar `land_area_m2`** |
-| `fave_property_bedrooms` | ✅ `bedrooms` | usar |
-| `fave_property_bathrooms` | ✅ `bathrooms` | usar |
-| `fave_property_garage` | ❌ | **adicionar `garage_spaces`** |
-| `fave_property_year` (ano construção) | ❌ | **adicionar `year_built`** |
-| `fave_property_address` + número | ✅ `full_address` / `address_number` | usar |
-| `fave_property_zip` | ✅ `zip_code` | usar |
-| `houzez_geolocation_lat/long` | ❌ | **adicionar `latitude`, `longitude`** |
-| `fave_property_map_address` | ✅ (cai em `full_address`) | usar |
-| taxonomy `property_city` | ✅ `city` | usar |
-| taxonomy `property_state` | ✅ `state` | usar |
-| taxonomy `property_area` (bairro) | ✅ `neighborhood` | usar |
-| taxonomy `property_type` | ✅ `property_type` (enum) | mapear |
-| taxonomy `property_status` (venda/aluguel) | ❌ | **adicionar `listing_status` ('venda' / 'aluguel' / 'venda_aluguel')** |
-| taxonomy `property_label` (lançamento, etc) | ❌ | **adicionar `labels TEXT[]`** |
-| taxonomy `property_feature` | ✅ `features[]` | usar |
-| `fave_property_images` | ✅ `public_photos[]` | usar |
-| thumbnail destacada | ❌ explícito | **adicionar `featured_photo`** (1ª foto destacada) |
-| `fave_video_url` | ❌ | **adicionar `video_url`** |
-| `fave_virtual_tour` | ❌ | **adicionar `virtual_tour_url`** |
-| `fave_property_id` (código Houzez ex "0003") | ❌ | **adicionar `external_code`** |
-| `fave_private_note` | ✅ `internal_notes` | usar |
-| IPTU / condomínio (`fave_additional_features`) | ❌ | **adicionar `extra_costs JSONB`** (`{ iptu, condominio, ... }`) |
-| `<post_date>` original | ❌ | **adicionar `source_published_at`** |
-| `<link>` original | ❌ | **adicionar `source_url`** |
-| ID externo (idempotência) | ❌ | **adicionar `source_id`** (único, evita duplicata) |
+**2. Parser XML (`ImportHouzezXml.tsx`)**
+- Capturar suítes: `fave_property_suites` → fallback `fave_suites` → `fave_suite`
+- Capturar nome do condomínio: `fave_property_subtitle` → fallback taxonomy `property_county_state`, salvar em campo novo (reaproveito `address_complement` que já existe e é texto livre, OU melhor: gravo em `extra_costs.condo_name` para não misturar com endereço)
+- Confirmar fallbacks do IPTU (`fave_property_iptu_value`, `fave_iptu_value`) e condomínio (adicionar `fave_property_taxa_condominio`)
 
-## Migration proposta
+**3. PropertyDetail.tsx — bloco VISÃO GERAL**
+- Adicionar ícone "Suíte" (ShowerHead) entre Dormitórios e Garagens quando `suites > 0`, igual à origem
 
-Adicionar à `properties`:
-
-```sql
-ALTER TABLE public.properties
-  ADD COLUMN land_area_m2 numeric,
-  ADD COLUMN garage_spaces integer,
-  ADD COLUMN year_built integer,
-  ADD COLUMN latitude numeric,
-  ADD COLUMN longitude numeric,
-  ADD COLUMN listing_status text DEFAULT 'venda',  -- 'venda' | 'aluguel' | 'venda_aluguel'
-  ADD COLUMN labels text[],
-  ADD COLUMN featured_photo text,
-  ADD COLUMN video_url text,
-  ADD COLUMN virtual_tour_url text,
-  ADD COLUMN external_code text,
-  ADD COLUMN extra_costs jsonb,
-  ADD COLUMN source_published_at timestamptz,
-  ADD COLUMN source_url text,
-  ADD COLUMN source_id text UNIQUE;   -- p.ex. "houzez:0003"
-
-CREATE INDEX idx_properties_source_id ON public.properties(source_id);
-CREATE INDEX idx_properties_external_code ON public.properties(external_code);
+**4. PropertyDetail.tsx — bloco DETALHES**
+Reorganizar para espelhar a origem (2 colunas, ordem idêntica):
 ```
-
-Todas as colunas são **nullable** e têm defaults seguros → não quebra nenhum imóvel existente nem nenhuma feature atual.
-
-## Atualizações em código (apenas adições, nada renomeado)
-
-1. **`src/lib/types.ts`** — adicionar os campos novos ao interface `Property` (todos opcionais)
-2. **`PropertyDetail.tsx`** — exibir os novos campos quando presentes (vídeo embed, tour virtual link, ano construção, vagas, IPTU/condomínio, mapa com lat/long)
-3. **`NewProperty.tsx` / `EditProperty.tsx`** — formulário com os novos campos (numa seção "Mais detalhes" recolhível pra não poluir)
-4. **Edge function `import-houzez-xml`** (nova) — popula todos os campos novos
-
-## Auditoria de paridade (sem ambiguidade)
-
-Após import, o relatório mostra para cada imóvel:
+ID do imóvel        | Preço
+Área construída     | Dormitórios
+Suíte               | Garagens
+Tipo de imóvel      | Situação do imóvel
+Propriedade (condo) | Valor do Condomínio
+Banheiros           | IPTU (quando houver)
 ```
-Houzez 0003 ─→ CC 7d3...
-  título      ✅ idêntico
-  preço       ✅ R$ 990.000
-  área        ✅ 68m²
-  quartos     ✅ 2
-  garagem     ✅ 1
-  fotos       ✅ 18 / 18
-  lat/long    ✅ -23.495, -46.84
-  vídeo       — (não tinha)
-  IPTU        ✅ R$ 320
-```
+- Banheiros = `bathrooms` puro (a origem mostra os dois separados; minha leitura inicial de "soma" foi errada — Suíte 1 e Banheiros 2 são campos independentes lá)
+- Adicionar linhas: "Suíte", "Propriedade", "Valor do Condomínio", "IPTU"
 
-Como `source_id` é único, importar 2x não duplica nada — apenas atualiza os campos.
+**5. Re-importar HZ0007 e validar visualmente** que o card fica idêntico à imagem 31 da origem.
 
-## Próximos passos após aprovação
+## Pergunta importante antes de codar
 
-1. Rodar a migration acima (adiciona 15 colunas, nada destrutivo)
-2. Atualizar `types.ts` + telas de detalhe/edição para mostrar os novos campos
-3. Criar a edge function `import-houzez-xml` populando 100% dos campos
-4. Criar a página `/admin/import-xml` (upload do XML + relatório)
-5. Você importa e validamos paridade com spot-check
+O Houzez tem **dois campos numéricos separados** para banheiro: `fave_property_bathrooms` e `fave_property_suites`. Na origem do seu portal aparecem como linhas separadas ("Suíte: 1", "Banheiros: 2"). Quando o seu XML do HZ0007 traz `bathrooms=1`, isso bate com o que a origem chama de "lavabo/banheiro social"? Ou a origem está somando suíte+banheiro em algum lugar?
 
----
+Vou seguir a interpretação "campos independentes" (mais segura e idêntica à imagem 31). Se depois você ver imóvel onde o número não bate, ajusto o cálculo.
 
-**Confirma essa abordagem (estender em vez de renomear)?** Se sim, eu já disparo a migration na próxima mensagem.
+## Próximos passos
 
-E confirma seu email no Corretor Camarada para vincular os 288 imóveis ao seu usuário?
+Aprova esse plano? Se sim, rodo a migration, atualizo parser + tela, e re-importo o HZ0007 pra você conferir lado-a-lado com a origem.
