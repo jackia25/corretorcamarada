@@ -38,6 +38,7 @@ export default function Profile() {
         city: city || null,
         state: state || null,
         bio: bio || null,
+        code_prefix: codePrefix ? codePrefix.trim().toUpperCase() : null,
       })
       .eq('id', profile.id);
 
