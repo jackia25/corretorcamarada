@@ -88,6 +88,7 @@ export default function EditProperty() {
       return;
     }
 
+    const extra = (data.extra_costs ?? {}) as Record<string, unknown>;
     setFormData({
       title: data.title || '',
       description: looksLikeHtml(data.description) ? htmlToPlainText(data.description) : (data.description || ''),
@@ -100,6 +101,14 @@ export default function EditProperty() {
       bedrooms: data.bedrooms?.toString() || '',
       bathrooms: data.bathrooms?.toString() || '',
       area_m2: data.area_m2?.toString() || '',
+      land_area_m2: data.land_area_m2?.toString() || '',
+      suites: data.suites?.toString() || '',
+      garage_spaces: data.garage_spaces?.toString() || '',
+      external_code: data.external_code || '',
+      condominium: typeof extra.condo_name === 'string' ? extra.condo_name : '',
+      iptu: typeof extra.iptu === 'number' ? String(extra.iptu) : '',
+      condo_value: typeof extra.condominio === 'number' ? String(extra.condominio) : '',
+      video_url: data.video_url || '',
       features: data.features?.join(', ') || '',
       full_address: data.full_address || '',
       address_number: data.address_number || '',
