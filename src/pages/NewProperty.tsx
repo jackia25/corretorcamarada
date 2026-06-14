@@ -98,7 +98,7 @@ export default function NewProperty() {
 
     const validData = result.data;
 
-    const extraCosts: Record<string, unknown> = {};
+    const extraCosts: Record<string, number | string> = {};
     if (validData.iptu) extraCosts.iptu = parseFloat(validData.iptu);
     if (validData.condo_value) extraCosts.condominio = parseFloat(validData.condo_value);
     if (validData.condominium) extraCosts.condo_name = validData.condominium;
