@@ -785,7 +785,7 @@ function parseFeatures(md: string): string[] {
   const linkRegex = /\[([^\]]+)\]\(https?:\/\/lemosproperties\.com\.br\/recurso\/[^\)]+\)/gi;
   let match;
   while ((match = linkRegex.exec(text)) !== null) {
-    const name = match[1].trim();
+    const name = unescapeMarkdown(match[1].trim());
     if (name && name.length < 60 && !name.startsWith('http')) {
       features.push(name);
     }
