@@ -1,0 +1,1 @@
+UPDATE public.properties SET title = 'Nova Jaguari | Casa de 178 m² com 3 Suítes, SPA Aquecido e Frente para Mata Nativa', suites = 3 WHERE external_code = '02346';
