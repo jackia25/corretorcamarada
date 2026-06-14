@@ -23,6 +23,7 @@ export default function Profile() {
   const [city, setCity] = useState(profile?.city || '');
   const [state, setState] = useState(profile?.state || '');
   const [bio, setBio] = useState(profile?.bio || '');
+  const [codePrefix, setCodePrefix] = useState(profile?.code_prefix || '');
 
   const handleSave = async () => {
     if (!profile) return;
