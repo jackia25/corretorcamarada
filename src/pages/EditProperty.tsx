@@ -12,10 +12,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { Lock, Eye, Loader2, ArrowLeft, Camera } from 'lucide-react';
+import { Lock, Eye, Loader2, ArrowLeft, Camera, Video } from 'lucide-react';
 import { PROPERTY_TYPE_LABELS, BRAZILIAN_STATES, PropertyType } from '@/lib/types';
 import { propertySchema } from '@/lib/validations';
 import { ImageUpload } from '@/components/property/ImageUpload';
+import { VideoUpload } from '@/components/property/VideoUpload';
 import { htmlToPlainText, looksLikeHtml } from '@/lib/htmlToPlainText';
 
 export default function EditProperty() {
