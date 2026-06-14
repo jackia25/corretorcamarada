@@ -356,7 +356,7 @@ export default function PropertyDetail() {
                       (selectedPhoto || photos[0]) === photo ? 'border-primary ring-1 ring-primary' : 'border-border'
                     }`}
                   >
-                    <img src={photo} alt={`${property.title} - foto ${index + 1}`} className="w-full h-full object-cover" />
+                    <img src={optimizedImageUrl(photo, { width: 240 })} alt={`${property.title} - foto ${index + 1}`} className="w-full h-full object-cover" loading="lazy" decoding="async" />
                   </button>
                 ))}
               </div>
