@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Property, PROPERTY_TYPE_LABELS, PropertyType, BRAZILIAN_STATES } from '@/lib/types';
+import { optimizedImageUrl } from '@/lib/imageUrl';
 
 export default function Properties() {
   const { profile } = useAuth();
@@ -95,7 +96,7 @@ export default function Properties() {
           <div className="aspect-video bg-muted relative">
             {property.public_photos?.[0] ? (
               <img 
-                src={property.public_photos[0]} 
+                src={optimizedImageUrl(property.public_photos[0], { width: 640 })} 
                 alt={property.title}
                 className="w-full h-full object-cover"
                 loading="lazy"

@@ -35,6 +35,7 @@ import {
 import { motion } from 'framer-motion';
 import { Property, AccessRequest, CooperationAgreement, PROPERTY_TYPE_LABELS, PropertyType } from '@/lib/types';
 import { extractAdditionalSourceFields } from '@/lib/sourceFields';
+import { optimizedImageUrl } from '@/lib/imageUrl';
 
 const LISTING_LABEL: Record<string, string> = {
   venda: 'À Venda',
@@ -329,9 +330,10 @@ export default function PropertyDetail() {
             <div className="aspect-video bg-muted rounded-xl overflow-hidden relative">
               {photos[0] ? (
                 <img
-                  src={selectedPhoto || photos[0]}
+                  src={optimizedImageUrl(selectedPhoto || photos[0], { width: 1280 })}
                   alt={property.title}
                   className="w-full h-full object-cover"
+                  decoding="async"
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center">
@@ -354,7 +356,7 @@ export default function PropertyDetail() {
                       (selectedPhoto || photos[0]) === photo ? 'border-primary ring-1 ring-primary' : 'border-border'
                     }`}
                   >
-                    <img src={photo} alt={`${property.title} - foto ${index + 1}`} className="w-full h-full object-cover" />
+                    <img src={optimizedImageUrl(photo, { width: 240 })} alt={`${property.title} - foto ${index + 1}`} className="w-full h-full object-cover" loading="lazy" decoding="async" />
                   </button>
                 ))}
               </div>
