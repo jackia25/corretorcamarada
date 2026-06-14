@@ -568,7 +568,9 @@ function parseTitle(md: string, metadata: any): string {
   const match = md.match(/^#\s+(.+?)$/m);
   if (match) {
     // Remove qualquer sufixo de código (",- Código 0007", "– Código HZ0007", etc.)
-    const stripped = match[1].replace(/\s*[,\-–—]?\s*c[oó]digo\s*\w+\s*$/i, '').trim();
+    let stripped = match[1].replace(/\s*[,\-–—]?\s*c[oó]digo\s*\w+\s*$/i, '').trim();
+    // Remove pontuação solta que tenha sobrado no fim
+    stripped = stripped.replace(/[\s,;\-–—]+$/, '').trim();
     return unescapeMarkdown(stripped);
   }
   return metadata.title || 'Imóvel sem título';
