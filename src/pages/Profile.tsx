@@ -101,7 +101,19 @@ export default function Profile() {
                     ))}
                   </SelectContent>
                 </Select>
+              <div className="space-y-2">
+                <Label>Sigla para códigos (ex: A)</Label>
+                <Input
+                  value={codePrefix}
+                  onChange={(e) => setCodePrefix(e.target.value.toUpperCase().slice(0, 5))}
+                  placeholder="A"
+                  maxLength={5}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Usada para gerar códigos automáticos dos seus imóveis (ex: A01, A02).
+                </p>
               </div>
+            </div>
             </div>
             <div className="space-y-2">
               <Label>Bio</Label>
