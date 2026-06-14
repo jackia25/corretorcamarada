@@ -97,7 +97,12 @@ export default function NewProperty() {
     setLoading(true);
 
     const validData = result.data;
-    
+
+    const extraCosts: Record<string, unknown> = {};
+    if (validData.iptu) extraCosts.iptu = parseFloat(validData.iptu);
+    if (validData.condo_value) extraCosts.condominio = parseFloat(validData.condo_value);
+    if (validData.condominium) extraCosts.condo_name = validData.condominium;
+
     const { error } = await supabase.from('properties').insert({
       owner_id: profile.id,
       title: validData.title,
@@ -111,6 +116,12 @@ export default function NewProperty() {
       bedrooms: validData.bedrooms ? parseInt(validData.bedrooms) : null,
       bathrooms: validData.bathrooms ? parseInt(validData.bathrooms) : null,
       area_m2: validData.area_m2 ? parseFloat(validData.area_m2) : null,
+      land_area_m2: validData.land_area_m2 ? parseFloat(validData.land_area_m2) : null,
+      suites: validData.suites ? parseInt(validData.suites) : null,
+      garage_spaces: validData.garage_spaces ? parseInt(validData.garage_spaces) : null,
+      external_code: validData.external_code || null,
+      video_url: validData.video_url || null,
+      extra_costs: Object.keys(extraCosts).length > 0 ? extraCosts : null,
       features: validData.features ? validData.features.split(',').map(f => f.trim()).filter(Boolean) : null,
       public_photos: publicPhotos.length > 0 ? publicPhotos : null,
       full_address: validData.full_address,
