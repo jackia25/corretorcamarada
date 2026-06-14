@@ -27,8 +27,55 @@ export default function ImportProperties() {
   const [resyncSample, setResyncSample] = useState<Record<string, unknown>[]>([]);
   const resyncStopRef = useRef(false);
 
+  // Audit (Houzez CSV/Excel) state
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditResult, setAuditResult] = useState<AuditResult | null>(null);
+  const [auditFilter, setAuditFilter] = useState<'all' | 'divergent' | 'missing' | 'ok'>('all');
+  const [auditFileName, setAuditFileName] = useState('');
+  const auditInputRef = useRef<HTMLInputElement>(null);
+
   const BATCH_SIZE = 3;
   const RESYNC_BATCH = 4;
+
+  const handleAuditFile = async (file: File | null) => {
+    if (!file) return;
+    setAuditLoading(true);
+    setAuditResult(null);
+    setAuditFileName(file.name);
+    try {
+      const rows = await parseAndNormalize(file);
+      if (rows.length === 0) {
+        toast({ variant: 'destructive', title: 'Planilha vazia', description: 'Não encontrei linhas de imóveis no arquivo.' });
+        setAuditLoading(false);
+        return;
+      }
+      const { data, error } = await supabase.functions.invoke('audit-houzez', { body: { rows } });
+      if (error) throw error;
+      setAuditResult(data as AuditResult);
+      const s = (data as AuditResult).summary;
+      toast({
+        title: 'Auditoria concluída',
+        description: `${s.ok} OK · ${s.divergent} divergentes · ${s.missing} faltando · ${s.extra} extras.`,
+      });
+    } catch (e: any) {
+      toast({ variant: 'destructive', title: 'Erro na auditoria', description: e.message });
+    } finally {
+      setAuditLoading(false);
+    }
+  };
+
+  const downloadAuditReport = () => {
+    if (!auditResult) return;
+    const csv = '\uFEFF' + buildReportCsv(auditResult);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `auditoria-lemos-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
 
   const handleMap = async () => {
     setStep('mapping');
