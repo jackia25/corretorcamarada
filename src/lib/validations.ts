@@ -55,6 +55,51 @@ export const propertySchema = z.object({
     .refine(val => !val || (!isNaN(parseFloat(val)) && parseFloat(val) > 0 && parseFloat(val) <= 100000), {
       message: 'Área deve ser entre 0 e 100.000 m²',
     }),
+  land_area_m2: z.string()
+    .optional()
+    .refine(val => !val || (!isNaN(parseFloat(val)) && parseFloat(val) > 0 && parseFloat(val) <= 1000000), {
+      message: 'Área do terreno deve ser entre 0 e 1.000.000 m²',
+    })
+    .or(z.literal('')),
+  suites: z.string()
+    .optional()
+    .refine(val => !val || (!isNaN(parseInt(val)) && parseInt(val) >= 0 && parseInt(val) <= 50), {
+      message: 'Suítes deve ser entre 0 e 50',
+    })
+    .or(z.literal('')),
+  garage_spaces: z.string()
+    .optional()
+    .refine(val => !val || (!isNaN(parseInt(val)) && parseInt(val) >= 0 && parseInt(val) <= 50), {
+      message: 'Vagas de garagem deve ser entre 0 e 50',
+    })
+    .or(z.literal('')),
+  external_code: z.string()
+    .trim()
+    .max(30, 'Código deve ter no máximo 30 caracteres')
+    .optional()
+    .or(z.literal('')),
+  condominium: z.string()
+    .trim()
+    .max(150, 'Condomínio deve ter no máximo 150 caracteres')
+    .optional()
+    .or(z.literal('')),
+  iptu: z.string()
+    .optional()
+    .refine(val => !val || (!isNaN(parseFloat(val)) && parseFloat(val) >= 0), {
+      message: 'IPTU deve ser um número positivo',
+    })
+    .or(z.literal('')),
+  condo_value: z.string()
+    .optional()
+    .refine(val => !val || (!isNaN(parseFloat(val)) && parseFloat(val) >= 0), {
+      message: 'Valor do condomínio deve ser um número positivo',
+    })
+    .or(z.literal('')),
+  video_url: z.string()
+    .trim()
+    .max(500, 'URL do vídeo muito longa')
+    .optional()
+    .or(z.literal('')),
   features: z.string()
     .max(500, 'Características devem ter no máximo 500 caracteres')
     .optional()
