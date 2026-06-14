@@ -588,12 +588,12 @@ export type Database = {
           phone: string | null
           state: string | null
           updated_at: string
-        }
+        }[]
         SetofOptions: {
           from: "*"
           to: "profiles"
-          isOneToOne: true
-          isSetofReturn: false
+          isOneToOne: false
+          isSetofReturn: true
         }
       }
       has_active_agreement: {
