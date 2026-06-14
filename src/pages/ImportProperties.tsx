@@ -463,3 +463,68 @@ export default function ImportProperties() {
     </Layout>
   );
 }
+
+function SummaryStat({ label, value, tone }: { label: string; value: number; tone?: 'ok' | 'warn' | 'bad' | 'muted' }) {
+  const color =
+    tone === 'ok' ? 'text-green-600' :
+    tone === 'warn' ? 'text-amber-600' :
+    tone === 'bad' ? 'text-destructive' :
+    tone === 'muted' ? 'text-muted-foreground' : 'text-foreground';
+  return (
+    <div className="rounded border p-2">
+      <div className={`text-lg font-bold ${color}`}>{value}</div>
+      <div className="text-[11px] text-muted-foreground">{label}</div>
+    </div>
+  );
+}
+
+function AuditRowCard({ item }: { item: AuditItem }) {
+  const badge =
+    item.status === 'ok' ? <Badge className="bg-green-600 hover:bg-green-600">OK</Badge> :
+    item.status === 'missing' ? <Badge variant="destructive">Faltando</Badge> :
+    <Badge className="bg-amber-500 hover:bg-amber-500">Divergente</Badge>;
+
+  return (
+    <div className="rounded border p-2 text-xs">
+      <div className="flex items-center gap-2">
+        {badge}
+        <span className="font-medium">{item.title}</span>
+        {item.key && <span className="text-muted-foreground">· {item.key}</span>}
+      </div>
+
+      {item.warnings.length > 0 && (
+        <ul className="mt-1 text-amber-600">
+          {item.warnings.map((w, i) => <li key={i}>⚠ {w}</li>)}
+        </ul>
+      )}
+
+      {item.field_diffs.length > 0 && (
+        <ul className="mt-1 space-y-0.5">
+          {item.field_diffs.map((d, i) => (
+            <li key={i}>
+              <span className="font-medium">{d.field}:</span>{' '}
+              <span className="text-green-600">origem {String(d.source ?? '—')}</span>{' '}
+              <span className="text-muted-foreground">/ banco {String(d.db ?? '—')}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {(item.photos_missing > 0 || item.photos_extra > 0) && (
+        <div className="mt-1 text-muted-foreground">
+          Fotos: origem {item.photos_source} / banco {item.photos_db}
+          {item.photos_missing > 0 && <span className="text-destructive"> · {item.photos_missing} faltando</span>}
+          {item.photos_extra > 0 && <span> · {item.photos_extra} a mais no banco</span>}
+        </div>
+      )}
+
+      {item.features_missing.length > 0 && (
+        <div className="mt-1">
+          <span className="text-muted-foreground">Características faltando: </span>
+          <span className="text-destructive">{item.features_missing.join(', ')}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
