@@ -98,6 +98,9 @@ export default function Properties() {
                 src={property.public_photos[0]} 
                 alt={property.title}
                 className="w-full h-full object-cover"
+                loading="lazy"
+                decoding="async"
+                referrerPolicy="no-referrer"
                 onError={(e) => {
                   const target = e.target as HTMLImageElement;
                   target.style.display = 'none';
