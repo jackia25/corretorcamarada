@@ -240,6 +240,93 @@ export default function ImportProperties() {
             </CardContent>
           </Card>
         )}
+
+        {/* Re-sincronizar conteúdo do site ao vivo */}
+        <Card className="border-primary/30">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <RefreshCw className="h-5 w-5 text-primary" />
+              Re-sincronizar conteúdo da Lemos
+            </CardTitle>
+            <CardDescription>
+              Atualiza título, descrição, características, áreas, dormitórios, banheiros e suítes dos imóveis já
+              importados, buscando direto do site ao vivo. Fotos e dados sensíveis são preservados.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                onClick={() => runResync(true)}
+                disabled={resyncStep === 'running'}
+              >
+                {resyncStep === 'running' ? (
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processando...</>
+                ) : (
+                  <><FlaskConical className="mr-2 h-4 w-4" /> Simular (sem salvar)</>
+                )}
+              </Button>
+              <Button
+                onClick={() => runResync(false)}
+                disabled={resyncStep === 'running'}
+                className="gradient-bg"
+              >
+                <RefreshCw className="mr-2 h-4 w-4" /> Re-sincronizar agora
+              </Button>
+              {resyncStep === 'running' && (
+                <Button variant="outline" onClick={() => { resyncStopRef.current = true; }}>
+                  Parar
+                </Button>
+              )}
+            </div>
+
+            {(resyncStep === 'running' || resyncStep === 'done') && (
+              <>
+                <Progress value={resyncProgress} className="h-3" />
+                <div className="flex flex-wrap items-center gap-4 text-sm">
+                  <span>{resyncCompared} analisados</span>
+                  <span className="flex items-center gap-1">
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                    {resyncUpdated} atualizados
+                  </span>
+                  {resyncErrors.length > 0 && (
+                    <span className="flex items-center gap-1">
+                      <AlertCircle className="h-4 w-4 text-destructive" />
+                      {resyncErrors.length} erros
+                    </span>
+                  )}
+                  <span>{resyncProgress}%</span>
+                </div>
+              </>
+            )}
+
+            {resyncSample.length > 0 && (
+              <details className="text-xs" open>
+                <summary className="cursor-pointer text-primary">Prévia ({resyncSample.length})</summary>
+                <ul className="mt-2 space-y-2 max-h-60 overflow-auto">
+                  {resyncSample.map((s, i) => (
+                    <li key={i} className="rounded border p-2">
+                      <div className="font-medium">{String(s.new_title ?? '')}</div>
+                      <div className="text-muted-foreground">
+                        {String(s.bedrooms ?? '-')} dorm · {String(s.bathrooms ?? '-')} banh · {String(s.suites ?? '-')} suítes ·{' '}
+                        {String(s.area_m2 ?? '-')} m² · {String(s.features_count ?? 0)} características
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+
+            {resyncErrors.length > 0 && (
+              <details className="text-xs">
+                <summary className="cursor-pointer text-destructive">Ver erros ({resyncErrors.length})</summary>
+                <ul className="mt-2 space-y-1 max-h-40 overflow-auto">
+                  {resyncErrors.map((e, i) => <li key={i} className="text-muted-foreground">{e}</li>)}
+                </ul>
+              </details>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </Layout>
   );
