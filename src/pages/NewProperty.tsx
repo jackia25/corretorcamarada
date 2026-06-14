@@ -37,6 +37,14 @@ export default function NewProperty() {
     bedrooms: '',
     bathrooms: '',
     area_m2: '',
+    land_area_m2: '',
+    suites: '',
+    garage_spaces: '',
+    external_code: '',
+    condominium: '',
+    iptu: '',
+    condo_value: '',
+    video_url: '',
     features: '',
     // Sensitive data
     full_address: '',
@@ -52,6 +60,15 @@ export default function NewProperty() {
   const [publicPhotos, setPublicPhotos] = useState<string[]>([]);
   const [sensitivePhotos, setSensitivePhotos] = useState<string[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Sugere automaticamente o próximo código com a sigla do corretor (ex.: A01)
+  useEffect(() => {
+    if (profile?.code_prefix) {
+      generateNextCode(profile.id, profile.code_prefix).then((code) => {
+        if (code) setFormData((prev) => (prev.external_code ? prev : { ...prev, external_code: code }));
+      });
+    }
+  }, [profile?.id, profile?.code_prefix]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
