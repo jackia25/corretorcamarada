@@ -559,10 +559,15 @@ function parsePropertyMarkdown(md: string, metadata: any, url: string): ParsedPr
 
 // ===== INDIVIDUAL PARSERS =====
 
+// Remove escapes de markdown comuns (\| \- \* \_ etc.) preservando o texto.
+function unescapeMarkdown(s: string): string {
+  return s.replace(/\\([\\`*_{}\[\]()#+\-.!|>~])/g, '$1');
+}
+
 function parseTitle(md: string, metadata: any): string {
   const match = md.match(/^#\s+(.+?)$/m);
   if (match) {
-    return match[1].replace(/\s*–\s*Código\s*\w+/, '').trim();
+    return unescapeMarkdown(match[1].replace(/\s*–\s*Código\s*\w+/, '').trim());
   }
   return metadata.title || 'Imóvel sem título';
 }
