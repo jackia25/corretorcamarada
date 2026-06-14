@@ -3,9 +3,11 @@ import { Layout } from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Play, CheckCircle, AlertCircle, Download, RefreshCw, FlaskConical } from 'lucide-react';
+import { Loader2, Play, CheckCircle, AlertCircle, Download, RefreshCw, FlaskConical, FileSpreadsheet, ClipboardCheck } from 'lucide-react';
+import { parseAndNormalize, buildReportCsv, type AuditResult, type AuditItem } from '@/lib/houzezAudit';
 
 export default function ImportProperties() {
   const [step, setStep] = useState<'idle' | 'mapping' | 'importing' | 'done'>('idle');
@@ -25,8 +27,55 @@ export default function ImportProperties() {
   const [resyncSample, setResyncSample] = useState<Record<string, unknown>[]>([]);
   const resyncStopRef = useRef(false);
 
+  // Audit (Houzez CSV/Excel) state
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditResult, setAuditResult] = useState<AuditResult | null>(null);
+  const [auditFilter, setAuditFilter] = useState<'all' | 'divergent' | 'missing' | 'ok'>('all');
+  const [auditFileName, setAuditFileName] = useState('');
+  const auditInputRef = useRef<HTMLInputElement>(null);
+
   const BATCH_SIZE = 3;
   const RESYNC_BATCH = 4;
+
+  const handleAuditFile = async (file: File | null) => {
+    if (!file) return;
+    setAuditLoading(true);
+    setAuditResult(null);
+    setAuditFileName(file.name);
+    try {
+      const rows = await parseAndNormalize(file);
+      if (rows.length === 0) {
+        toast({ variant: 'destructive', title: 'Planilha vazia', description: 'Não encontrei linhas de imóveis no arquivo.' });
+        setAuditLoading(false);
+        return;
+      }
+      const { data, error } = await supabase.functions.invoke('audit-houzez', { body: { rows } });
+      if (error) throw error;
+      setAuditResult(data as AuditResult);
+      const s = (data as AuditResult).summary;
+      toast({
+        title: 'Auditoria concluída',
+        description: `${s.ok} OK · ${s.divergent} divergentes · ${s.missing} faltando · ${s.extra} extras.`,
+      });
+    } catch (e: any) {
+      toast({ variant: 'destructive', title: 'Erro na auditoria', description: e.message });
+    } finally {
+      setAuditLoading(false);
+    }
+  };
+
+  const downloadAuditReport = () => {
+    if (!auditResult) return;
+    const csv = '\uFEFF' + buildReportCsv(auditResult);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `auditoria-lemos-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
 
   const handleMap = async () => {
     setStep('mapping');
@@ -150,6 +199,89 @@ export default function ImportProperties() {
         <p className="text-muted-foreground">
           Importe imóveis automaticamente do site lemosproperties.com.br
         </p>
+
+        {/* Auditoria: comparar planilha do Houzez com o banco */}
+        <Card className="border-primary/30">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ClipboardCheck className="h-5 w-5 text-primary" />
+              Auditoria — Origem × Banco
+            </CardTitle>
+            <CardDescription>
+              Exporte a planilha (CSV ou Excel) dos imóveis no admin do Houzez e envie aqui. Comparo
+              imóvel a imóvel: faltando/extras, campos (preço, áreas, quartos…), fotos e características.
+              Nada é alterado — apenas um relatório.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <input
+              ref={auditInputRef}
+              type="file"
+              accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              className="hidden"
+              onChange={(e) => handleAuditFile(e.target.files?.[0] ?? null)}
+            />
+            <div className="flex flex-wrap items-center gap-2">
+              <Button onClick={() => auditInputRef.current?.click()} disabled={auditLoading}>
+                {auditLoading ? (
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Analisando...</>
+                ) : (
+                  <><FileSpreadsheet className="mr-2 h-4 w-4" /> Enviar planilha do Houzez</>
+                )}
+              </Button>
+              {auditResult && (
+                <Button variant="outline" onClick={downloadAuditReport}>
+                  <Download className="mr-2 h-4 w-4" /> Baixar relatório (CSV)
+                </Button>
+              )}
+              {auditFileName && <span className="text-xs text-muted-foreground">{auditFileName}</span>}
+            </div>
+
+            {auditResult && (
+              <>
+                <div className="grid grid-cols-3 gap-2 sm:grid-cols-6 text-center">
+                  <SummaryStat label="Origem" value={auditResult.summary.source_total} />
+                  <SummaryStat label="Banco" value={auditResult.summary.db_total} />
+                  <SummaryStat label="OK" value={auditResult.summary.ok} tone="ok" />
+                  <SummaryStat label="Divergentes" value={auditResult.summary.divergent} tone="warn" />
+                  <SummaryStat label="Faltando" value={auditResult.summary.missing} tone="bad" />
+                  <SummaryStat label="Extras" value={auditResult.summary.extra} tone="muted" />
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  {(['all', 'divergent', 'missing', 'ok'] as const).map((f) => (
+                    <Button
+                      key={f}
+                      size="sm"
+                      variant={auditFilter === f ? 'default' : 'outline'}
+                      onClick={() => setAuditFilter(f)}
+                    >
+                      {f === 'all' ? 'Todos' : f === 'divergent' ? 'Divergentes' : f === 'missing' ? 'Faltando' : 'OK'}
+                    </Button>
+                  ))}
+                </div>
+
+                <div className="space-y-2 max-h-[28rem] overflow-auto">
+                  {auditResult.items
+                    .filter((it) => auditFilter === 'all' || it.status === auditFilter)
+                    .map((it, i) => <AuditRowCard key={i} item={it} />)}
+                  {auditFilter === 'all' && auditResult.extras.map((ex, i) => (
+                    <div key={`ex-${i}`} className="rounded border p-2 text-xs">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary">Extra</Badge>
+                        <span className="font-medium">{ex.title}</span>
+                      </div>
+                      <div className="text-muted-foreground mt-1">
+                        No banco sem correspondência na origem{ex.code ? ` · ${ex.code}` : ''}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
 
         <Card>
           <CardHeader>
@@ -331,3 +463,68 @@ export default function ImportProperties() {
     </Layout>
   );
 }
+
+function SummaryStat({ label, value, tone }: { label: string; value: number; tone?: 'ok' | 'warn' | 'bad' | 'muted' }) {
+  const color =
+    tone === 'ok' ? 'text-green-600' :
+    tone === 'warn' ? 'text-amber-600' :
+    tone === 'bad' ? 'text-destructive' :
+    tone === 'muted' ? 'text-muted-foreground' : 'text-foreground';
+  return (
+    <div className="rounded border p-2">
+      <div className={`text-lg font-bold ${color}`}>{value}</div>
+      <div className="text-[11px] text-muted-foreground">{label}</div>
+    </div>
+  );
+}
+
+function AuditRowCard({ item }: { item: AuditItem }) {
+  const badge =
+    item.status === 'ok' ? <Badge className="bg-green-600 hover:bg-green-600">OK</Badge> :
+    item.status === 'missing' ? <Badge variant="destructive">Faltando</Badge> :
+    <Badge className="bg-amber-500 hover:bg-amber-500">Divergente</Badge>;
+
+  return (
+    <div className="rounded border p-2 text-xs">
+      <div className="flex items-center gap-2">
+        {badge}
+        <span className="font-medium">{item.title}</span>
+        {item.key && <span className="text-muted-foreground">· {item.key}</span>}
+      </div>
+
+      {item.warnings.length > 0 && (
+        <ul className="mt-1 text-amber-600">
+          {item.warnings.map((w, i) => <li key={i}>⚠ {w}</li>)}
+        </ul>
+      )}
+
+      {item.field_diffs.length > 0 && (
+        <ul className="mt-1 space-y-0.5">
+          {item.field_diffs.map((d, i) => (
+            <li key={i}>
+              <span className="font-medium">{d.field}:</span>{' '}
+              <span className="text-green-600">origem {String(d.source ?? '—')}</span>{' '}
+              <span className="text-muted-foreground">/ banco {String(d.db ?? '—')}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {(item.photos_missing > 0 || item.photos_extra > 0) && (
+        <div className="mt-1 text-muted-foreground">
+          Fotos: origem {item.photos_source} / banco {item.photos_db}
+          {item.photos_missing > 0 && <span className="text-destructive"> · {item.photos_missing} faltando</span>}
+          {item.photos_extra > 0 && <span> · {item.photos_extra} a mais no banco</span>}
+        </div>
+      )}
+
+      {item.features_missing.length > 0 && (
+        <div className="mt-1">
+          <span className="text-muted-foreground">Características faltando: </span>
+          <span className="text-destructive">{item.features_missing.join(', ')}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+

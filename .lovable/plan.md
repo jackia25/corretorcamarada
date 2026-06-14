@@ -1,52 +1,66 @@
-# Correções da importação Lemos + melhorias no cadastro
+# Auditoria "Origem × Banco" (Lemos)
 
-Diagnóstico confirmado no código e no banco:
-- A importação **não usa IA** e grava os campos **fiel ao XML**. "Air Offices/Green Valley" e "troca de núcleos" vêm do **próprio XML**, que é uma foto **antiga** do site da Lemos.
-- Os bugs de rótulo ("ID do OI", "Situação do loca", "Área do té", "Tipo de habitação", "área de por", "escritório") **já estão corrigidos no código atual** — os prints são da versão publicada antiga.
-- O quadro "Dados da origem" **já está oculto** no código.
-- Todos os 268 imóveis têm o **link de origem salvo** (`source_url`), então dá para re-sincronizar do site ao vivo.
+Objetivo: garantir que cada imóvel do site Lemos esteja cadastrado e **idêntico** no Corretor Camarada, usando a **exportação CSV/Excel do Houzez** (que você gera no admin) como fonte da verdade.
 
-## Fase 1 — Publicar correções já feitas
-Republicar o app para que os rótulos corretos e a remoção do quadro "Dados da origem" apareçam no site real. Isso já resolve a maior parte das páginas 1 e 2 do documento.
+## Diagnóstico atual
+- Site Lemos: **278 imóveis** no `property-sitemap.xml`.
+- Banco: **268 imóveis** importados (todos com `source_url`).
+- Há **~10 imóveis na origem que ainda não estão no banco**.
+- A importação atual depende de *scraping* de texto (regex sobre markdown), frágil para garantir "exatamente igual". A planilha nativa do Houzez resolve isso porque traz os campos estruturados.
 
-## Fase 2 — Ajustar exibição dos detalhes (`PropertyDetail.tsx`)
-- Não exibir "Área do terreno" quando ela for **igual** à área construída (caso da sala comercial: mostra só uma metragem).
-- Remover a linha de área duplicada e garantir que campos vazios não apareçam.
-- Revisar o título da seção de características para ficar consistente com o restante da página.
+## Como vai funcionar (fluxo)
 
-## Fase 3 — Re-sincronizar conteúdo do site da Lemos (recomendado como fonte da verdade)
-Atualiza os 268 imóveis com o conteúdo **atual e em português** do site, sem perder fotos nem dados sensíveis.
-- Nova rotina na função `import-properties` que percorre os imóveis pelo `source_url` já salvo, raspa a página ao vivo (Firecrawl) e sobrescreve **apenas o conteúdo público**: título, descrição, características, tipo, áreas, dormitórios, **banheiros**, suítes, garagem, IPTU, condomínio, situação.
-- Melhorar o leitor (parser) para capturar corretamente **banheiros**, **suítes**, **área construída x área do terreno** e os nomes das características em PT-BR com a capitalização certa (ex.: "Área de Serviço", "Mobiliado", "Escritório").
-- Preservar: fotos públicas/sensíveis, dados do proprietário, notas internas, acordos.
-- Rodar primeiro em modo **simulação** (relatório do que mudaria) e depois aplicar em lotes.
-- Botão na tela de importação para disparar e acompanhar o progresso.
+```text
+Você exporta CSV/Excel no Houzez
+        │
+        ▼
+Tela "Auditoria de Importação" (admin)  ── upload do arquivo
+        │
+        ▼
+Edge function "audit-houzez" compara linha a linha com o banco
+        │
+        ▼
+Relatório de divergências (na tela + download CSV)
+        │
+        ▼
+Botão "Corrigir" → cria faltantes / atualiza divergentes
+   (preservando fotos enviadas e dados sensíveis)
+```
 
-## Fase 4 — Novos campos no formulário de cadastro (páginas 4–5)
-Expor no cadastro/edição os campos que o banco **já suporta**:
-- **Condomínio** (texto livre digitado pelo corretor — sem autocomplete).
-- **Suítes**, **Garagem/Vagas**, **Banheiros** (já existe).
-- **Área construída** e **Área total (terreno)** separadas.
-- **IPTU** e **Valor do condomínio**.
-- **Upload de vídeo** (do computador/celular) salvo junto do imóvel.
-- Campos extras de negócio (aceita permuta, proposta, garantias de locação) como opcionais.
+## O que a auditoria verifica
+1. **Imóveis faltando / extras** — quem existe na origem e não no banco (e vice‑versa).
+2. **Campos** — preço, área construída, área do terreno, quartos, suítes, banheiros, vagas, tipo, situação, bairro/cidade, IPTU, condomínio. Lista cada divergência (valor origem × valor banco).
+3. **Fotos** — compara quantidade e o conjunto de URLs (normalizando o sufixo `-LARGxALT`), apontando fotos faltando ou a mais.
+4. **Características/destaques** — compara a lista de *features* item a item (faltando / a mais).
 
-## Fase 5 — Código do imóvel com prefixo por corretor
-- Cada corretor recebe uma **letra/sigla** (ex.: "A").
-- Ao cadastrar, o sistema **sugere automaticamente** um código sequencial com o prefixo (A01, A02, …), editável pelo corretor.
-- Exibir o código no detalhe e na busca, evitando códigos repetidos entre corretores diferentes.
+Cada imóvel recebe um status: **OK**, **Divergente**, **Faltando**, **Extra**.
 
----
+## Etapas de implementação
+
+### Fase 0 — Mapear o export (precisa de 1 amostra)
+- Você gera e me envia **uma** exportação do Houzez (pode ser de poucos imóveis).
+- Defino o mapeamento exato das colunas do Houzez → campos do banco (chave de match: **código/ID do imóvel** do Houzez; fallback: **permalink → `source_url`**).
+
+### Fase 1 — Edge function `audit-houzez` (somente leitura)
+- Recebe as linhas do CSV/Excel já normalizadas, busca os imóveis correspondentes no banco e devolve o relatório estruturado (faltando, extras, divergências de campo, fotos e features). **Não grava nada.**
+
+### Fase 2 — Tela de Auditoria (admin)
+- Upload do arquivo (parse de CSV/XLSX no cliente), envio para a function, e exibição:
+  - Resumo (Total origem, Total banco, OK, Divergentes, Faltando, Extras).
+  - Tabela filtrável por status, com detalhe de cada divergência.
+  - Botão **"Baixar relatório (CSV)"**.
+
+### Fase 3 — Correção controlada
+- Botão **"Simular correção"** e **"Aplicar correção"** reaproveitando a function `import-houzez-xml` já existente:
+  - **Faltando** → cria o imóvel com os dados da planilha.
+  - **Divergente** → atualiza apenas os campos públicos divergentes, **preservando fotos já enviadas ao storage e dados sensíveis** (mesma regra do resync atual).
+  - **Extra** → apenas listado para revisão manual (não remove automaticamente).
 
 ## Detalhes técnicos
-- **Banco**: adicionar `code_prefix` em `profiles` (letra do corretor) e, se necessário, sequência por corretor para gerar o código. Os campos de imóvel (`suites`, `land_area_m2`, `garage_spaces`, `video_url`, `extra_costs`, `external_code`) **já existem** na tabela `properties` (46 colunas).
-- **Validação**: atualizar `src/lib/validations.ts` (Zod) e `src/lib/types.ts` para os novos campos do formulário.
-- **Re-sync**: novo `action` na edge function `import-properties` iterando por `source_url`; usa Firecrawl scrape (markdown+html), atualiza só colunas de conteúdo público via service role; processamento em lotes com `dryRun` e relatório de divergências.
-- **Vídeo**: upload para o bucket `property-photos` (ou novo bucket), gravando a URL em `properties.video_url`.
-- **Detalhe**: ajuste condicional em `PropertyDetail.tsx` para áreas duplicadas.
+- Match por código Houzez (armazenado hoje em `internal_notes: "Código: HZ..."`) com fallback por `source_url`/permalink. Na Fase 0 valido qual identificador o export traz.
+- Normalização antes de comparar: números (área/preço sem separador), texto (trim/lowercase), fotos (remoção do sufixo `-\d+x\d+`), features como conjunto.
+- Relatório também salvo como arquivo em `/mnt/documents` para download.
+- Nenhuma mudança em RLS/segurança nesta etapa; a function de auditoria roda com service role e só é acionada por admin na tela de importação.
 
-## Ordem de execução sugerida
-1. Fase 1 (publicar) — efeito imediato.
-2. Fase 2 (exibição) — rápido.
-3. Fase 4 + Fase 5 (formulário e código) — uma migração de banco.
-4. Fase 3 (re-sync) — rodar simulação, revisar relatório, aplicar.
+## O que preciso de você para começar
+- Uma **amostra da exportação CSV/Excel do Houzez** para travar o mapeamento de colunas (Fase 0). Assim que enviar, sigo para as Fases 1–3.
