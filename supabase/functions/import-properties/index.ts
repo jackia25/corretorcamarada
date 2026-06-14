@@ -530,8 +530,10 @@ function parsePropertyMarkdown(md: string, metadata: any, url: string): ParsedPr
   const location = parseLocation(md);
   const propertyType = determinePropertyType(title, url, details.propertyTypeRaw);
 
+  // Não duplica o código quando o título já o contém (ex.: "... Código 0003")
+  const titleHasCode = /c[oó]digo/i.test(title) || (code && title.includes(code));
   return {
-    title: code ? `${title} – Código ${code}` : title,
+    title: code && !titleHasCode ? `${title} – Código ${code}` : title,
     description,
     price,
     area,
