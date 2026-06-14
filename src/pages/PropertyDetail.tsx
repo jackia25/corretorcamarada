@@ -424,7 +424,7 @@ export default function PropertyDetail() {
                       {condoValue != null && <DetailRow label="Valor do Condomínio" value={brl(condoValue)} />}
                       {property.bathrooms != null && <DetailRow label="Banheiros" value={property.bathrooms} />}
                       {iptuValue != null && <DetailRow label="IPTU" value={brl(iptuValue)} />}
-                      {property.land_area_m2 != null && <DetailRow label="Área do terreno" value={`${property.land_area_m2} m²`} />}
+                      {property.land_area_m2 != null && property.land_area_m2 !== property.area_m2 && <DetailRow label="Área do terreno" value={`${property.land_area_m2} m²`} />}
                       {property.year_built != null && <DetailRow label="Ano de construção" value={property.year_built} />}
                       {extras.map((f) => (
                         <DetailRow
