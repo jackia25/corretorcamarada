@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -11,10 +11,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { Lock, Eye, Loader2, ArrowLeft, Camera } from 'lucide-react';
+import { Lock, Eye, Loader2, ArrowLeft, Camera, Video } from 'lucide-react';
 import { PROPERTY_TYPE_LABELS, BRAZILIAN_STATES, PropertyType } from '@/lib/types';
 import { propertySchema } from '@/lib/validations';
 import { ImageUpload } from '@/components/property/ImageUpload';
+import { VideoUpload } from '@/components/property/VideoUpload';
+import { generateNextCode } from '@/lib/propertyCode';
 
 export default function NewProperty() {
   const { profile } = useAuth();
