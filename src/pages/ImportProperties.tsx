@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Progress } from '@/components/ui/progress';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Play, CheckCircle, AlertCircle, Download } from 'lucide-react';
+import { Loader2, Play, CheckCircle, AlertCircle, Download, RefreshCw, FlaskConical } from 'lucide-react';
 
 export default function ImportProperties() {
   const [step, setStep] = useState<'idle' | 'mapping' | 'importing' | 'done'>('idle');
@@ -16,7 +16,17 @@ export default function ImportProperties() {
   const stopRef = useRef(false);
   const { toast } = useToast();
 
+  // Re-sync state
+  const [resyncStep, setResyncStep] = useState<'idle' | 'running' | 'done'>('idle');
+  const [resyncProgress, setResyncProgress] = useState(0);
+  const [resyncUpdated, setResyncUpdated] = useState(0);
+  const [resyncCompared, setResyncCompared] = useState(0);
+  const [resyncErrors, setResyncErrors] = useState<string[]>([]);
+  const [resyncSample, setResyncSample] = useState<Record<string, unknown>[]>([]);
+  const resyncStopRef = useRef(false);
+
   const BATCH_SIZE = 3;
+  const RESYNC_BATCH = 4;
 
   const handleMap = async () => {
     setStep('mapping');
@@ -72,6 +82,65 @@ export default function ImportProperties() {
 
   const handleStop = () => {
     stopRef.current = true;
+  };
+
+  const runResync = async (dryRun: boolean) => {
+    setResyncStep('running');
+    resyncStopRef.current = false;
+    setResyncProgress(0);
+    setResyncUpdated(0);
+    setResyncCompared(0);
+    setResyncErrors([]);
+    setResyncSample([]);
+
+    // Total de imóveis com link de origem
+    const { count } = await supabase
+      .from('properties')
+      .select('id', { count: 'exact', head: true })
+      .not('source_url', 'is', null);
+
+    const total = count || 0;
+    if (total === 0) {
+      toast({ variant: 'destructive', title: 'Nada para sincronizar', description: 'Nenhum imóvel com link de origem.' });
+      setResyncStep('idle');
+      return;
+    }
+
+    let compared = 0;
+    let updated = 0;
+    const allErrors: string[] = [];
+    const allSamples: Record<string, unknown>[] = [];
+
+    for (let offset = 0; offset < total; offset += RESYNC_BATCH) {
+      if (resyncStopRef.current) break;
+      try {
+        const { data, error } = await supabase.functions.invoke('import-properties', {
+          body: { action: 'resync', dryRun, limit: RESYNC_BATCH, offset },
+        });
+        if (error) throw error;
+        compared += data.compared || 0;
+        updated += data.updated || 0;
+        if (data.errors?.length) allErrors.push(...data.errors);
+        if (data.sample?.length && allSamples.length < 30) allSamples.push(...data.sample);
+      } catch (e: any) {
+        allErrors.push(`Lote ${offset}: ${e.message}`);
+      }
+
+      setResyncCompared(compared);
+      setResyncUpdated(updated);
+      setResyncErrors(allErrors);
+      setResyncSample(allSamples);
+      setResyncProgress(Math.min(100, Math.round(((offset + RESYNC_BATCH) / total) * 100)));
+      await new Promise((r) => setTimeout(r, 800));
+    }
+
+    setResyncStep('done');
+    toast({
+      title: dryRun ? 'Simulação concluída' : 'Re-sincronização concluída',
+      description: dryRun
+        ? `${compared} imóveis analisados. Revise a prévia abaixo.`
+        : `${updated} imóveis atualizados. ${allErrors.length} erros.`,
+    });
   };
 
   return (
@@ -171,6 +240,93 @@ export default function ImportProperties() {
             </CardContent>
           </Card>
         )}
+
+        {/* Re-sincronizar conteúdo do site ao vivo */}
+        <Card className="border-primary/30">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <RefreshCw className="h-5 w-5 text-primary" />
+              Re-sincronizar conteúdo da Lemos
+            </CardTitle>
+            <CardDescription>
+              Atualiza título, descrição, características, áreas, dormitórios, banheiros e suítes dos imóveis já
+              importados, buscando direto do site ao vivo. Fotos e dados sensíveis são preservados.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                onClick={() => runResync(true)}
+                disabled={resyncStep === 'running'}
+              >
+                {resyncStep === 'running' ? (
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processando...</>
+                ) : (
+                  <><FlaskConical className="mr-2 h-4 w-4" /> Simular (sem salvar)</>
+                )}
+              </Button>
+              <Button
+                onClick={() => runResync(false)}
+                disabled={resyncStep === 'running'}
+                className="gradient-bg"
+              >
+                <RefreshCw className="mr-2 h-4 w-4" /> Re-sincronizar agora
+              </Button>
+              {resyncStep === 'running' && (
+                <Button variant="outline" onClick={() => { resyncStopRef.current = true; }}>
+                  Parar
+                </Button>
+              )}
+            </div>
+
+            {(resyncStep === 'running' || resyncStep === 'done') && (
+              <>
+                <Progress value={resyncProgress} className="h-3" />
+                <div className="flex flex-wrap items-center gap-4 text-sm">
+                  <span>{resyncCompared} analisados</span>
+                  <span className="flex items-center gap-1">
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                    {resyncUpdated} atualizados
+                  </span>
+                  {resyncErrors.length > 0 && (
+                    <span className="flex items-center gap-1">
+                      <AlertCircle className="h-4 w-4 text-destructive" />
+                      {resyncErrors.length} erros
+                    </span>
+                  )}
+                  <span>{resyncProgress}%</span>
+                </div>
+              </>
+            )}
+
+            {resyncSample.length > 0 && (
+              <details className="text-xs" open>
+                <summary className="cursor-pointer text-primary">Prévia ({resyncSample.length})</summary>
+                <ul className="mt-2 space-y-2 max-h-60 overflow-auto">
+                  {resyncSample.map((s, i) => (
+                    <li key={i} className="rounded border p-2">
+                      <div className="font-medium">{String(s.new_title ?? '')}</div>
+                      <div className="text-muted-foreground">
+                        {String(s.bedrooms ?? '-')} dorm · {String(s.bathrooms ?? '-')} banh · {String(s.suites ?? '-')} suítes ·{' '}
+                        {String(s.area_m2 ?? '-')} m² · {String(s.features_count ?? 0)} características
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+
+            {resyncErrors.length > 0 && (
+              <details className="text-xs">
+                <summary className="cursor-pointer text-destructive">Ver erros ({resyncErrors.length})</summary>
+                <ul className="mt-2 space-y-1 max-h-40 overflow-auto">
+                  {resyncErrors.map((e, i) => <li key={i} className="text-muted-foreground">{e}</li>)}
+                </ul>
+              </details>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </Layout>
   );

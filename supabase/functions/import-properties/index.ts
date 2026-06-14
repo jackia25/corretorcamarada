@@ -100,10 +100,160 @@ serve(async (req) => {
     });
   }
 
-  return new Response(JSON.stringify({ error: 'Invalid action. Use "map", "import" or "reconcile"' }), {
+  // Step 4: Re-sync content from the live site using the stored source_url
+  // Preserves photos and sensitive data; overwrites only public content fields.
+  if (action === 'resync') {
+    const result = await resyncFromSourceUrl({
+      supabaseAdmin,
+      firecrawlKey,
+      dryRun,
+      limit: typeof limit === 'number' ? limit : undefined,
+      offset: typeof offset === 'number' ? offset : 0,
+      propertyIds: Array.isArray(propertyIds) ? propertyIds : undefined,
+    });
+
+    return new Response(JSON.stringify({ success: true, ...result }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
+
+  return new Response(JSON.stringify({ error: 'Invalid action. Use "map", "import", "reconcile" or "resync"' }), {
     status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
   });
 });
+
+// ===== RE-SYNC FROM LIVE SITE (by source_url) =====
+function mapListingStatus(raw: string): string | null {
+  if (!raw) return null;
+  const t = raw.toLowerCase();
+  if (t.includes('alug')) return 'aluguel';
+  if (t.includes('vend') || t.includes('venda') || t.includes('comprar')) return 'venda';
+  return null;
+}
+
+// Monta apenas os campos de CONTEÚDO PÚBLICO (não toca em fotos nem dados sensíveis)
+function buildContentPayload(parsed: ParsedProperty, existingExtra: Record<string, unknown> | null) {
+  const extra: Record<string, number | string> = {};
+  // preserva chaves existentes que não recalculamos
+  if (existingExtra) {
+    for (const [k, v] of Object.entries(existingExtra)) {
+      if (typeof v === 'number' || typeof v === 'string') extra[k] = v;
+    }
+  }
+  if (parsed.iptu != null) extra.iptu = parsed.iptu;
+  if (parsed.condominium) extra.condo_name = parsed.condominium;
+
+  const payload: Record<string, unknown> = {
+    title: parsed.title.substring(0, 200),
+    description: parsed.description || null,
+    property_type: parsed.propertyType,
+    neighborhood: parsed.neighborhood,
+    city: parsed.city,
+    state: parsed.state,
+    zip_code: parsed.zipCode || null,
+    bedrooms: parsed.bedrooms,
+    bathrooms: parsed.bathrooms,
+    suites: parsed.suites,
+    garage_spaces: parsed.garages,
+    area_m2: parsed.area,
+    land_area_m2: parsed.areaTotal,
+    price_range_min: parsed.price,
+    price_range_max: parsed.price,
+    features: parsed.features.length > 0 ? parsed.features : null,
+    extra_costs: Object.keys(extra).length > 0 ? extra : null,
+  };
+  const status = mapListingStatus(parsed.listingStatus);
+  if (status) payload.listing_status = status;
+  return payload;
+}
+
+async function resyncFromSourceUrl({
+  supabaseAdmin,
+  firecrawlKey,
+  dryRun,
+  limit,
+  offset,
+  propertyIds,
+}: {
+  supabaseAdmin: any;
+  firecrawlKey: string;
+  dryRun: boolean;
+  limit?: number;
+  offset: number;
+  propertyIds?: string[];
+}) {
+  let query = supabaseAdmin
+    .from('properties')
+    .select('id,title,source_url,extra_costs')
+    .not('source_url', 'is', null)
+    .order('created_at', { ascending: true });
+
+  if (Array.isArray(propertyIds) && propertyIds.length > 0) {
+    query = query.in('id', propertyIds);
+  }
+  if (typeof limit === 'number') {
+    query = query.range(offset, offset + Math.max(0, limit - 1));
+  }
+
+  const { data: properties, error: listError } = await query;
+  if (listError) {
+    return { total: 0, compared: 0, updated: 0, dry_run: dryRun, errors: [listError.message] };
+  }
+
+  const errors: string[] = [];
+  const sample: Array<Record<string, unknown>> = [];
+  let compared = 0;
+  let updated = 0;
+
+  for (const property of properties || []) {
+    const sourceUrl = property.source_url as string;
+    if (!sourceUrl) continue;
+
+    try {
+      const parsed = await scrapeAndParseProperty(sourceUrl, firecrawlKey);
+      if (!parsed) {
+        errors.push(`Sem conteúdo na origem: ${sourceUrl}`);
+        continue;
+      }
+      compared++;
+      const payload = buildContentPayload(parsed, property.extra_costs || null);
+
+      if (sample.length < 30) {
+        sample.push({
+          id: property.id,
+          old_title: property.title,
+          new_title: payload.title,
+          bedrooms: payload.bedrooms,
+          bathrooms: payload.bathrooms,
+          suites: payload.suites,
+          area_m2: payload.area_m2,
+          land_area_m2: payload.land_area_m2,
+          features_count: Array.isArray(payload.features) ? payload.features.length : 0,
+        });
+      }
+
+      if (!dryRun) {
+        const { error } = await supabaseAdmin
+          .from('properties')
+          .update(payload)
+          .eq('id', property.id);
+        if (error) errors.push(`Erro ao atualizar ${property.title}: ${error.message}`);
+        else updated++;
+      }
+    } catch (e) {
+      errors.push(`Erro ao re-sincronizar ${property.title}: ${e.message}`);
+    }
+  }
+
+  return {
+    total: (properties || []).length,
+    compared,
+    updated,
+    dry_run: dryRun,
+    sample,
+    errors,
+  };
+}
 
 async function scrapeAndParseProperty(url: string, firecrawlKey: string): Promise<ParsedProperty | null> {
   console.log(`Scraping: ${url}`);
@@ -380,8 +530,10 @@ function parsePropertyMarkdown(md: string, metadata: any, url: string): ParsedPr
   const location = parseLocation(md);
   const propertyType = determinePropertyType(title, url, details.propertyTypeRaw);
 
+  // Não duplica o código quando o título já o contém (ex.: "... Código 0003")
+  const titleHasCode = /c[oó]digo/i.test(title) || (code && title.includes(code));
   return {
-    title: code ? `${title} – Código ${code}` : title,
+    title: code && !titleHasCode ? `${title} – Código ${code}` : title,
     description,
     price,
     area,
@@ -407,10 +559,19 @@ function parsePropertyMarkdown(md: string, metadata: any, url: string): ParsedPr
 
 // ===== INDIVIDUAL PARSERS =====
 
+// Remove escapes de markdown comuns (\| \- \* \_ etc.) preservando o texto.
+function unescapeMarkdown(s: string): string {
+  return s.replace(/\\([\\`*_{}\[\]()#+\-.!|>~])/g, '$1');
+}
+
 function parseTitle(md: string, metadata: any): string {
   const match = md.match(/^#\s+(.+?)$/m);
   if (match) {
-    return match[1].replace(/\s*–\s*Código\s*\w+/, '').trim();
+    // Remove qualquer sufixo de código (",- Código 0007", "– Código HZ0007", etc.)
+    let stripped = match[1].replace(/\s*[,\-–—]?\s*c[oó]digo\s*\w+\s*$/i, '').trim();
+    // Remove pontuação solta que tenha sobrado no fim
+    stripped = stripped.replace(/[\s,;\-–—]+$/, '').trim();
+    return unescapeMarkdown(stripped);
   }
   return metadata.title || 'Imóvel sem título';
 }
@@ -489,9 +650,10 @@ function parseDetailsSection(md: string): {
     } else if (key.includes('área total')) {
       const num = val.match(/([\d.,]+)\s*m/);
       if (num) result.areaTotal = parseFloat(num[1].replace(/\./g, '').replace(',', '.'));
-    } else if (key.includes('dormitório') || key.includes('suíte') || key.includes('suite')) {
+    } else if (key.includes('dormitório') || key.includes('dormitorio') || key.includes('quarto')) {
       result.bedrooms = parseInt(val);
-      if (key.includes('suíte') || key.includes('suite')) result.suites = parseInt(val);
+    } else if (key.includes('suíte') || key.includes('suite')) {
+      result.suites = parseInt(val);
     } else if (key.includes('banheiro')) {
       result.bathrooms = parseInt(val);
     } else if (key.includes('garagem') || key.includes('garagens') || key.includes('vaga')) {
@@ -628,7 +790,7 @@ function parseFeatures(md: string): string[] {
   const linkRegex = /\[([^\]]+)\]\(https?:\/\/lemosproperties\.com\.br\/recurso\/[^\)]+\)/gi;
   let match;
   while ((match = linkRegex.exec(text)) !== null) {
-    const name = match[1].trim();
+    const name = unescapeMarkdown(match[1].trim());
     if (name && name.length < 60 && !name.startsWith('http')) {
       features.push(name);
     }
@@ -663,7 +825,8 @@ function parseDescription(md: string, metadata: any): string {
   
   // Clean up excess whitespace
   desc = desc.replace(/\n{3,}/g, '\n\n').trim();
-  
+  desc = unescapeMarkdown(desc);
+
   return desc || metadata.description || '';
 }
 

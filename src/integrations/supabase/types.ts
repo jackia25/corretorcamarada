@@ -291,6 +291,7 @@ export type Database = {
           avatar_url: string | null
           bio: string | null
           city: string | null
+          code_prefix: string | null
           created_at: string
           creci: string
           full_name: string
@@ -303,6 +304,7 @@ export type Database = {
           avatar_url?: string | null
           bio?: string | null
           city?: string | null
+          code_prefix?: string | null
           created_at?: string
           creci: string
           full_name: string
@@ -315,6 +317,7 @@ export type Database = {
           avatar_url?: string | null
           bio?: string | null
           city?: string | null
+          code_prefix?: string | null
           created_at?: string
           creci?: string
           full_name?: string

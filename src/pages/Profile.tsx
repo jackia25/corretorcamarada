@@ -23,6 +23,7 @@ export default function Profile() {
   const [city, setCity] = useState(profile?.city || '');
   const [state, setState] = useState(profile?.state || '');
   const [bio, setBio] = useState(profile?.bio || '');
+  const [codePrefix, setCodePrefix] = useState(profile?.code_prefix || '');
 
   const handleSave = async () => {
     if (!profile) return;
@@ -37,6 +38,7 @@ export default function Profile() {
         city: city || null,
         state: state || null,
         bio: bio || null,
+        code_prefix: codePrefix ? codePrefix.trim().toUpperCase() : null,
       })
       .eq('id', profile.id);
 
@@ -99,7 +101,19 @@ export default function Profile() {
                     ))}
                   </SelectContent>
                 </Select>
+              <div className="space-y-2">
+                <Label>Sigla para códigos (ex: A)</Label>
+                <Input
+                  value={codePrefix}
+                  onChange={(e) => setCodePrefix(e.target.value.toUpperCase().slice(0, 5))}
+                  placeholder="A"
+                  maxLength={5}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Usada para gerar códigos automáticos dos seus imóveis (ex: A01, A02).
+                </p>
               </div>
+            </div>
             </div>
             <div className="space-y-2">
               <Label>Bio</Label>

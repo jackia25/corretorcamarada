@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -11,10 +11,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { Lock, Eye, Loader2, ArrowLeft, Camera } from 'lucide-react';
+import { Lock, Eye, Loader2, ArrowLeft, Camera, Video } from 'lucide-react';
 import { PROPERTY_TYPE_LABELS, BRAZILIAN_STATES, PropertyType } from '@/lib/types';
 import { propertySchema } from '@/lib/validations';
 import { ImageUpload } from '@/components/property/ImageUpload';
+import { VideoUpload } from '@/components/property/VideoUpload';
+import { generateNextCode } from '@/lib/propertyCode';
 
 export default function NewProperty() {
   const { profile } = useAuth();
@@ -35,6 +37,14 @@ export default function NewProperty() {
     bedrooms: '',
     bathrooms: '',
     area_m2: '',
+    land_area_m2: '',
+    suites: '',
+    garage_spaces: '',
+    external_code: '',
+    condominium: '',
+    iptu: '',
+    condo_value: '',
+    video_url: '',
     features: '',
     // Sensitive data
     full_address: '',
@@ -50,6 +60,15 @@ export default function NewProperty() {
   const [publicPhotos, setPublicPhotos] = useState<string[]>([]);
   const [sensitivePhotos, setSensitivePhotos] = useState<string[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Sugere automaticamente o próximo código com a sigla do corretor (ex.: A01)
+  useEffect(() => {
+    if (profile?.code_prefix) {
+      generateNextCode(profile.id, profile.code_prefix).then((code) => {
+        if (code) setFormData((prev) => (prev.external_code ? prev : { ...prev, external_code: code }));
+      });
+    }
+  }, [profile?.id, profile?.code_prefix]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -78,7 +97,12 @@ export default function NewProperty() {
     setLoading(true);
 
     const validData = result.data;
-    
+
+    const extraCosts: Record<string, number | string> = {};
+    if (validData.iptu) extraCosts.iptu = parseFloat(validData.iptu);
+    if (validData.condo_value) extraCosts.condominio = parseFloat(validData.condo_value);
+    if (validData.condominium) extraCosts.condo_name = validData.condominium;
+
     const { error } = await supabase.from('properties').insert({
       owner_id: profile.id,
       title: validData.title,
@@ -92,6 +116,12 @@ export default function NewProperty() {
       bedrooms: validData.bedrooms ? parseInt(validData.bedrooms) : null,
       bathrooms: validData.bathrooms ? parseInt(validData.bathrooms) : null,
       area_m2: validData.area_m2 ? parseFloat(validData.area_m2) : null,
+      land_area_m2: validData.land_area_m2 ? parseFloat(validData.land_area_m2) : null,
+      suites: validData.suites ? parseInt(validData.suites) : null,
+      garage_spaces: validData.garage_spaces ? parseInt(validData.garage_spaces) : null,
+      external_code: validData.external_code || null,
+      video_url: validData.video_url || null,
+      extra_costs: Object.keys(extraCosts).length > 0 ? extraCosts : null,
       features: validData.features ? validData.features.split(',').map(f => f.trim()).filter(Boolean) : null,
       public_photos: publicPhotos.length > 0 ? publicPhotos : null,
       full_address: validData.full_address,
@@ -277,7 +307,7 @@ export default function NewProperty() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="area_m2">Área (m²)</Label>
+                  <Label htmlFor="area_m2">Área construída (m²)</Label>
                   <Input
                     id="area_m2"
                     type="number"
@@ -285,6 +315,88 @@ export default function NewProperty() {
                     value={formData.area_m2}
                     onChange={(e) => setFormData({ ...formData, area_m2: e.target.value })}
                   />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="land_area_m2">Área do terreno (m²)</Label>
+                  <Input
+                    id="land_area_m2"
+                    type="number"
+                    placeholder="250"
+                    value={formData.land_area_m2}
+                    onChange={(e) => setFormData({ ...formData, land_area_m2: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="suites">Suítes</Label>
+                  <Input
+                    id="suites"
+                    type="number"
+                    placeholder="1"
+                    value={formData.suites}
+                    onChange={(e) => setFormData({ ...formData, suites: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="garage_spaces">Garagem (vagas)</Label>
+                  <Input
+                    id="garage_spaces"
+                    type="number"
+                    placeholder="2"
+                    value={formData.garage_spaces}
+                    onChange={(e) => setFormData({ ...formData, garage_spaces: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="iptu">IPTU (R$)</Label>
+                  <Input
+                    id="iptu"
+                    type="number"
+                    placeholder="1200"
+                    value={formData.iptu}
+                    onChange={(e) => setFormData({ ...formData, iptu: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="condo_value">Valor do condomínio (R$)</Label>
+                  <Input
+                    id="condo_value"
+                    type="number"
+                    placeholder="800"
+                    value={formData.condo_value}
+                    onChange={(e) => setFormData({ ...formData, condo_value: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="condominium">Condomínio</Label>
+                  <Input
+                    id="condominium"
+                    placeholder="Nome do condomínio/empreendimento"
+                    value={formData.condominium}
+                    onChange={(e) => setFormData({ ...formData, condominium: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="external_code">Código do imóvel</Label>
+                  <Input
+                    id="external_code"
+                    placeholder={profile?.code_prefix ? `${profile.code_prefix}01` : 'Ex: A01'}
+                    value={formData.external_code}
+                    onChange={(e) => setFormData({ ...formData, external_code: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {profile?.code_prefix
+                      ? 'Sugerido automaticamente com a sua sigla. Você pode alterar.'
+                      : 'Defina sua sigla no perfil para gerar códigos automáticos (ex: A01).'}
+                  </p>
                 </div>
               </div>
 
@@ -297,6 +409,26 @@ export default function NewProperty() {
                   onChange={(e) => setFormData({ ...formData, features: e.target.value })}
                 />
               </div>
+
+              <Separator />
+
+              {/* Vídeo do imóvel */}
+              {profile && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Video className="h-5 w-5 text-primary" />
+                    <span className="font-medium">Vídeo do Imóvel</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Opcional. Suba um vídeo do computador ou celular para enriquecer o anúncio.
+                  </p>
+                  <VideoUpload
+                    userId={profile.id}
+                    value={formData.video_url}
+                    onChange={(url) => setFormData({ ...formData, video_url: url })}
+                  />
+                </div>
+              )}
 
               <Separator />
 
