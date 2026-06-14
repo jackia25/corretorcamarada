@@ -12,6 +12,7 @@ export interface Profile {
   state: string | null;
   avatar_url: string | null;
   bio: string | null;
+  code_prefix: string | null;
   created_at: string;
   updated_at: string;
 }
