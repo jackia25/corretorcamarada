@@ -3,9 +3,11 @@ import { Layout } from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Play, CheckCircle, AlertCircle, Download, RefreshCw, FlaskConical } from 'lucide-react';
+import { Loader2, Play, CheckCircle, AlertCircle, Download, RefreshCw, FlaskConical, FileSpreadsheet, ClipboardCheck } from 'lucide-react';
+import { parseAndNormalize, buildReportCsv, type AuditResult, type AuditItem } from '@/lib/houzezAudit';
 
 export default function ImportProperties() {
   const [step, setStep] = useState<'idle' | 'mapping' | 'importing' | 'done'>('idle');
