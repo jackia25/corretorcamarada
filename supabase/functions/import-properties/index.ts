@@ -820,7 +820,8 @@ function parseDescription(md: string, metadata: any): string {
   
   // Clean up excess whitespace
   desc = desc.replace(/\n{3,}/g, '\n\n').trim();
-  
+  desc = unescapeMarkdown(desc);
+
   return desc || metadata.description || '';
 }
 
