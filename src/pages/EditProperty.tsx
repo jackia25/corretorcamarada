@@ -376,13 +376,90 @@ export default function EditProperty() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="area_m2">Área (m²)</Label>
+                  <Label htmlFor="area_m2">Área construída (m²)</Label>
                   <Input
                     id="area_m2"
                     type="number"
                     placeholder="120"
                     value={formData.area_m2}
                     onChange={(e) => setFormData({ ...formData, area_m2: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="land_area_m2">Área do terreno (m²)</Label>
+                  <Input
+                    id="land_area_m2"
+                    type="number"
+                    placeholder="250"
+                    value={formData.land_area_m2}
+                    onChange={(e) => setFormData({ ...formData, land_area_m2: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="suites">Suítes</Label>
+                  <Input
+                    id="suites"
+                    type="number"
+                    placeholder="1"
+                    value={formData.suites}
+                    onChange={(e) => setFormData({ ...formData, suites: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="garage_spaces">Garagem (vagas)</Label>
+                  <Input
+                    id="garage_spaces"
+                    type="number"
+                    placeholder="2"
+                    value={formData.garage_spaces}
+                    onChange={(e) => setFormData({ ...formData, garage_spaces: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="iptu">IPTU (R$)</Label>
+                  <Input
+                    id="iptu"
+                    type="number"
+                    placeholder="1200"
+                    value={formData.iptu}
+                    onChange={(e) => setFormData({ ...formData, iptu: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="condo_value">Valor do condomínio (R$)</Label>
+                  <Input
+                    id="condo_value"
+                    type="number"
+                    placeholder="800"
+                    value={formData.condo_value}
+                    onChange={(e) => setFormData({ ...formData, condo_value: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="condominium">Condomínio</Label>
+                  <Input
+                    id="condominium"
+                    placeholder="Nome do condomínio/empreendimento"
+                    value={formData.condominium}
+                    onChange={(e) => setFormData({ ...formData, condominium: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="external_code">Código do imóvel</Label>
+                  <Input
+                    id="external_code"
+                    placeholder={profile?.code_prefix ? `${profile.code_prefix}01` : 'Ex: A01'}
+                    value={formData.external_code}
+                    onChange={(e) => setFormData({ ...formData, external_code: e.target.value })}
                   />
                 </div>
               </div>
@@ -396,6 +473,26 @@ export default function EditProperty() {
                   onChange={(e) => setFormData({ ...formData, features: e.target.value })}
                 />
               </div>
+
+              <Separator />
+
+              {/* Vídeo do imóvel */}
+              {profile && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Video className="h-5 w-5 text-primary" />
+                    <span className="font-medium">Vídeo do Imóvel</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Opcional. Suba um vídeo do computador ou celular para enriquecer o anúncio.
+                  </p>
+                  <VideoUpload
+                    userId={profile.id}
+                    value={formData.video_url}
+                    onChange={(url) => setFormData({ ...formData, video_url: url })}
+                  />
+                </div>
+              )}
 
               <Separator />
 
