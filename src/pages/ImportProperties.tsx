@@ -84,6 +84,65 @@ export default function ImportProperties() {
     stopRef.current = true;
   };
 
+  const runResync = async (dryRun: boolean) => {
+    setResyncStep('running');
+    resyncStopRef.current = false;
+    setResyncProgress(0);
+    setResyncUpdated(0);
+    setResyncCompared(0);
+    setResyncErrors([]);
+    setResyncSample([]);
+
+    // Total de imóveis com link de origem
+    const { count } = await supabase
+      .from('properties')
+      .select('id', { count: 'exact', head: true })
+      .not('source_url', 'is', null);
+
+    const total = count || 0;
+    if (total === 0) {
+      toast({ variant: 'destructive', title: 'Nada para sincronizar', description: 'Nenhum imóvel com link de origem.' });
+      setResyncStep('idle');
+      return;
+    }
+
+    let compared = 0;
+    let updated = 0;
+    const allErrors: string[] = [];
+    const allSamples: Record<string, unknown>[] = [];
+
+    for (let offset = 0; offset < total; offset += RESYNC_BATCH) {
+      if (resyncStopRef.current) break;
+      try {
+        const { data, error } = await supabase.functions.invoke('import-properties', {
+          body: { action: 'resync', dryRun, limit: RESYNC_BATCH, offset },
+        });
+        if (error) throw error;
+        compared += data.compared || 0;
+        updated += data.updated || 0;
+        if (data.errors?.length) allErrors.push(...data.errors);
+        if (data.sample?.length && allSamples.length < 30) allSamples.push(...data.sample);
+      } catch (e: any) {
+        allErrors.push(`Lote ${offset}: ${e.message}`);
+      }
+
+      setResyncCompared(compared);
+      setResyncUpdated(updated);
+      setResyncErrors(allErrors);
+      setResyncSample(allSamples);
+      setResyncProgress(Math.min(100, Math.round(((offset + RESYNC_BATCH) / total) * 100)));
+      await new Promise((r) => setTimeout(r, 800));
+    }
+
+    setResyncStep('done');
+    toast({
+      title: dryRun ? 'Simulação concluída' : 'Re-sincronização concluída',
+      description: dryRun
+        ? `${compared} imóveis analisados. Revise a prévia abaixo.`
+        : `${updated} imóveis atualizados. ${allErrors.length} erros.`,
+    });
+  };
+
   return (
     <Layout>
       <div className="max-w-2xl mx-auto space-y-6">
