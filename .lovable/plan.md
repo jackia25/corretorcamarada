@@ -1,47 +1,52 @@
-## Causa raiz confirmada (imóvel 02336 do XML novo)
+# Correções da importação Lemos + melhorias no cadastro
 
-As chaves Houzez do Lemos usam **hífen**, não underscore:
+Diagnóstico confirmado no código e no banco:
+- A importação **não usa IA** e grava os campos **fiel ao XML**. "Air Offices/Green Valley" e "troca de núcleos" vêm do **próprio XML**, que é uma foto **antiga** do site da Lemos.
+- Os bugs de rótulo ("ID do OI", "Situação do loca", "Área do té", "Tipo de habitação", "área de por", "escritório") **já estão corrigidos no código atual** — os prints são da versão publicada antiga.
+- O quadro "Dados da origem" **já está oculto** no código.
+- Todos os 268 imóveis têm o **link de origem salvo** (`source_url`), então dá para re-sincronizar do site ao vivo.
 
-- `fave_aceita-permuta` = `Sim`
-- `fave_aceita-proposta` = `Sim`
-- `fave_garantias-aceitas` aparece duas vezes → `["Caução", "Seguro fiança"]`
-- `fave_prazo-de-contrato` = `30 meses`
-- `fave_condomc3ado` (duplicado, segundo valor = `Condomínio Ápice Park`)
-- `fave_banheiros` = `1` (não tem `fave_property_bathrooms`)
-- `fave_property_land` = `52` (não tem `fave_property_size`)
+## Fase 1 — Publicar correções já feitas
+Republicar o app para que os rótulos corretos e a remoção do quadro "Dados da origem" apareçam no site real. Isso já resolve a maior parte das páginas 1 e 2 do documento.
 
-Hoje a `LABELS` em `src/lib/sourceFields.ts` só tem versões com underscore (`fave_aceita_permuta`), então a allowlist barra esses campos e o Detalhes some com `Aceita permuta`, etc.
+## Fase 2 — Ajustar exibição dos detalhes (`PropertyDetail.tsx`)
+- Não exibir "Área do terreno" quando ela for **igual** à área construída (caso da sala comercial: mostra só uma metragem).
+- Remover a linha de área duplicada e garantir que campos vazios não apareçam.
+- Revisar o título da seção de características para ficar consistente com o restante da página.
 
-## Plano
+## Fase 3 — Re-sincronizar conteúdo do site da Lemos (recomendado como fonte da verdade)
+Atualiza os 268 imóveis com o conteúdo **atual e em português** do site, sem perder fotos nem dados sensíveis.
+- Nova rotina na função `import-properties` que percorre os imóveis pelo `source_url` já salvo, raspa a página ao vivo (Firecrawl) e sobrescreve **apenas o conteúdo público**: título, descrição, características, tipo, áreas, dormitórios, **banheiros**, suítes, garagem, IPTU, condomínio, situação.
+- Melhorar o leitor (parser) para capturar corretamente **banheiros**, **suítes**, **área construída x área do terreno** e os nomes das características em PT-BR com a capitalização certa (ex.: "Área de Serviço", "Mobiliado", "Escritório").
+- Preservar: fotos públicas/sensíveis, dados do proprietário, notas internas, acordos.
+- Rodar primeiro em modo **simulação** (relatório do que mudaria) e depois aplicar em lotes.
+- Botão na tela de importação para disparar e acompanhar o progresso.
 
-1. **Validador de paridade origem × destino**
-   - Novo módulo `src/lib/sourceParity.ts` que recebe `source_payload` + objeto persistido e devolve `{ok, diffs[]}`.
-   - Para cada chave de `meta` e `categories` da origem (exceto técnicas conhecidas), exige uma das duas: estar refletida em um campo mapeado do destino OU estar preservada em `source_payload.meta` com mesmo valor (chave/valor bate exatamente, considerando arrays e PHP serialize).
-   - Normaliza hífen ↔ underscore para considerar variantes equivalentes (`fave_aceita-permuta` ≡ `fave_aceita_permuta`).
+## Fase 4 — Novos campos no formulário de cadastro (páginas 4–5)
+Expor no cadastro/edição os campos que o banco **já suporta**:
+- **Condomínio** (texto livre digitado pelo corretor — sem autocomplete).
+- **Suítes**, **Garagem/Vagas**, **Banheiros** (já existe).
+- **Área construída** e **Área total (terreno)** separadas.
+- **IPTU** e **Valor do condomínio**.
+- **Upload de vídeo** (do computador/celular) salvo junto do imóvel.
+- Campos extras de negócio (aceita permuta, proposta, garantias de locação) como opcionais.
 
-2. **Trava de importação no `ImportHouzezXml.tsx`**
-   - Antes do `supabase.functions.invoke('import-houzez-xml', ...)`, rodar o validador em cada imóvel filtrado.
-   - Imóveis com qualquer divergência viram bloqueados (mesma UX do `_blocking` atual). Botão só importa os 100% aprovados.
-   - Tabela de auditoria por imóvel: código, total de chaves, divergências, com chave/valor esperado × encontrado.
+## Fase 5 — Código do imóvel com prefixo por corretor
+- Cada corretor recebe uma **letra/sigla** (ex.: "A").
+- Ao cadastrar, o sistema **sugere automaticamente** um código sequencial com o prefixo (A01, A02, …), editável pelo corretor.
+- Exibir o código no detalhe e na busca, evitando códigos repetidos entre corretores diferentes.
 
-3. **Corrigir `src/lib/sourceFields.ts`**
-   - Adicionar variantes com hífen ao `LABELS` (`fave_aceita-permuta`, `fave_aceita-proposta`, `fave_garantias-aceitas`, `fave_prazo-de-contrato`, `fave_garantias-financiamento` etc.).
-   - Tornar a checagem de allowlist insensível a hífen/underscore.
-   - Garantir que `fave_condomc3ado` duplicado pegue o valor não vazio (já tratado, validar).
+---
 
-4. **Mapeamento extra na parsing**
-   - Em `parseXML`: para `area_m2`, considerar `fave_property_size` e cair em `fave_property_land` quando ausente (apartamento Lemos usa só `land`).
-   - Manter `fave_banheiros` como fonte primária quando presente (já tratado).
+## Detalhes técnicos
+- **Banco**: adicionar `code_prefix` em `profiles` (letra do corretor) e, se necessário, sequência por corretor para gerar o código. Os campos de imóvel (`suites`, `land_area_m2`, `garage_spaces`, `video_url`, `extra_costs`, `external_code`) **já existem** na tabela `properties` (46 colunas).
+- **Validação**: atualizar `src/lib/validations.ts` (Zod) e `src/lib/types.ts` para os novos campos do formulário.
+- **Re-sync**: novo `action` na edge function `import-properties` iterando por `source_url`; usa Firecrawl scrape (markdown+html), atualiza só colunas de conteúdo público via service role; processamento em lotes com `dryRun` e relatório de divergências.
+- **Vídeo**: upload para o bucket `property-photos` (ou novo bucket), gravando a URL em `properties.video_url`.
+- **Detalhe**: ajuste condicional em `PropertyDetail.tsx` para áreas duplicadas.
 
-5. **Testes automatizados**
-   - `src/lib/sourceParity.test.ts` com payload real do `02336`:
-     - todos os campos de negócio detectados (`Aceita permuta`, `Aceita proposta`, `Garantias aceitas` como `["Caução","Seguro fiança"]`, `Prazo de contrato`).
-     - técnicos (`houzez_*`, `_yoast_*`, `fave_single_*`, `fave_prop_homeslider`, `fave_agent_display_option`, `fave_property_location`, `fave_property_map`, `fave_show_price_placeholder`, `fave_loggedintoview`, `fave_featured`) ficam de fora do Detalhes mas continuam preservados em `source_payload`.
-     - validador retorna `ok: true` para o payload completo do 02336.
-   - Atualizar `src/lib/sourceFields.test.ts` para também passar com chaves hifenizadas.
-
-## Critério de aceite
-
-- Reimportar o `02336` mostra no Detalhes: `Aceita permuta = Sim`, `Aceita proposta = Sim`, `Garantias aceitas = Caução, Seguro fiança`, `Prazo de contrato = 30 meses`, `Propriedade = Condomínio Ápice Park`, `Banheiros = 1`, `Área construída = 52 m²`.
-- Tela de importação reporta `validados / bloqueados / divergências` e não importa imóvel com diferença de chave/valor entre origem e destino.
-- Testes passando para o payload real do 02336.
+## Ordem de execução sugerida
+1. Fase 1 (publicar) — efeito imediato.
+2. Fase 2 (exibição) — rápido.
+3. Fase 4 + Fase 5 (formulário e código) — uma migração de banco.
+4. Fase 3 (re-sync) — rodar simulação, revisar relatório, aplicar.
