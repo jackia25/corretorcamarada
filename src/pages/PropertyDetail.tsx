@@ -330,9 +330,10 @@ export default function PropertyDetail() {
             <div className="aspect-video bg-muted rounded-xl overflow-hidden relative">
               {photos[0] ? (
                 <img
-                  src={selectedPhoto || photos[0]}
+                  src={optimizedImageUrl(selectedPhoto || photos[0], { width: 1280 })}
                   alt={property.title}
                   className="w-full h-full object-cover"
+                  decoding="async"
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center">
