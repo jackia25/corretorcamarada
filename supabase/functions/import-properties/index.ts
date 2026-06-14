@@ -648,9 +648,10 @@ function parseDetailsSection(md: string): {
     } else if (key.includes('área total')) {
       const num = val.match(/([\d.,]+)\s*m/);
       if (num) result.areaTotal = parseFloat(num[1].replace(/\./g, '').replace(',', '.'));
-    } else if (key.includes('dormitório') || key.includes('suíte') || key.includes('suite')) {
+    } else if (key.includes('dormitório') || key.includes('dormitorio') || key.includes('quarto')) {
       result.bedrooms = parseInt(val);
-      if (key.includes('suíte') || key.includes('suite')) result.suites = parseInt(val);
+    } else if (key.includes('suíte') || key.includes('suite')) {
+      result.suites = parseInt(val);
     } else if (key.includes('banheiro')) {
       result.bathrooms = parseInt(val);
     } else if (key.includes('garagem') || key.includes('garagens') || key.includes('vaga')) {
