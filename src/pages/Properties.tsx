@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Property, PROPERTY_TYPE_LABELS, PropertyType, BRAZILIAN_STATES } from '@/lib/types';
+import { optimizedImageUrl } from '@/lib/imageUrl';
 
 export default function Properties() {
   const { profile } = useAuth();
