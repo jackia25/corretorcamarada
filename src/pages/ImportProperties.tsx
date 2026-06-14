@@ -200,6 +200,89 @@ export default function ImportProperties() {
           Importe imóveis automaticamente do site lemosproperties.com.br
         </p>
 
+        {/* Auditoria: comparar planilha do Houzez com o banco */}
+        <Card className="border-primary/30">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ClipboardCheck className="h-5 w-5 text-primary" />
+              Auditoria — Origem × Banco
+            </CardTitle>
+            <CardDescription>
+              Exporte a planilha (CSV ou Excel) dos imóveis no admin do Houzez e envie aqui. Comparo
+              imóvel a imóvel: faltando/extras, campos (preço, áreas, quartos…), fotos e características.
+              Nada é alterado — apenas um relatório.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <input
+              ref={auditInputRef}
+              type="file"
+              accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              className="hidden"
+              onChange={(e) => handleAuditFile(e.target.files?.[0] ?? null)}
+            />
+            <div className="flex flex-wrap items-center gap-2">
+              <Button onClick={() => auditInputRef.current?.click()} disabled={auditLoading}>
+                {auditLoading ? (
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Analisando...</>
+                ) : (
+                  <><FileSpreadsheet className="mr-2 h-4 w-4" /> Enviar planilha do Houzez</>
+                )}
+              </Button>
+              {auditResult && (
+                <Button variant="outline" onClick={downloadAuditReport}>
+                  <Download className="mr-2 h-4 w-4" /> Baixar relatório (CSV)
+                </Button>
+              )}
+              {auditFileName && <span className="text-xs text-muted-foreground">{auditFileName}</span>}
+            </div>
+
+            {auditResult && (
+              <>
+                <div className="grid grid-cols-3 gap-2 sm:grid-cols-6 text-center">
+                  <SummaryStat label="Origem" value={auditResult.summary.source_total} />
+                  <SummaryStat label="Banco" value={auditResult.summary.db_total} />
+                  <SummaryStat label="OK" value={auditResult.summary.ok} tone="ok" />
+                  <SummaryStat label="Divergentes" value={auditResult.summary.divergent} tone="warn" />
+                  <SummaryStat label="Faltando" value={auditResult.summary.missing} tone="bad" />
+                  <SummaryStat label="Extras" value={auditResult.summary.extra} tone="muted" />
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  {(['all', 'divergent', 'missing', 'ok'] as const).map((f) => (
+                    <Button
+                      key={f}
+                      size="sm"
+                      variant={auditFilter === f ? 'default' : 'outline'}
+                      onClick={() => setAuditFilter(f)}
+                    >
+                      {f === 'all' ? 'Todos' : f === 'divergent' ? 'Divergentes' : f === 'missing' ? 'Faltando' : 'OK'}
+                    </Button>
+                  ))}
+                </div>
+
+                <div className="space-y-2 max-h-[28rem] overflow-auto">
+                  {auditResult.items
+                    .filter((it) => auditFilter === 'all' || it.status === auditFilter)
+                    .map((it, i) => <AuditRowCard key={i} item={it} />)}
+                  {auditFilter === 'all' && auditResult.extras.map((ex, i) => (
+                    <div key={`ex-${i}`} className="rounded border p-2 text-xs">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary">Extra</Badge>
+                        <span className="font-medium">{ex.title}</span>
+                      </div>
+                      <div className="text-muted-foreground mt-1">
+                        No banco sem correspondência na origem{ex.code ? ` · ${ex.code}` : ''}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+
         <Card>
           <CardHeader>
             <CardTitle>Passo 1: Mapear imóveis</CardTitle>
