@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Progress } from '@/components/ui/progress';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Play, CheckCircle, AlertCircle, Download } from 'lucide-react';
+import { Loader2, Play, CheckCircle, AlertCircle, Download, RefreshCw, FlaskConical } from 'lucide-react';
 
 export default function ImportProperties() {
   const [step, setStep] = useState<'idle' | 'mapping' | 'importing' | 'done'>('idle');
@@ -16,7 +16,17 @@ export default function ImportProperties() {
   const stopRef = useRef(false);
   const { toast } = useToast();
 
+  // Re-sync state
+  const [resyncStep, setResyncStep] = useState<'idle' | 'running' | 'done'>('idle');
+  const [resyncProgress, setResyncProgress] = useState(0);
+  const [resyncUpdated, setResyncUpdated] = useState(0);
+  const [resyncCompared, setResyncCompared] = useState(0);
+  const [resyncErrors, setResyncErrors] = useState<string[]>([]);
+  const [resyncSample, setResyncSample] = useState<Record<string, unknown>[]>([]);
+  const resyncStopRef = useRef(false);
+
   const BATCH_SIZE = 3;
+  const RESYNC_BATCH = 4;
 
   const handleMap = async () => {
     setStep('mapping');
