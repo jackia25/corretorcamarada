@@ -574,6 +574,28 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_my_profile: {
+        Args: never
+        Returns: {
+          avatar_url: string | null
+          bio: string | null
+          city: string | null
+          code_prefix: string | null
+          created_at: string
+          creci: string
+          full_name: string
+          id: string
+          phone: string | null
+          state: string | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "profiles"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       has_active_agreement: {
         Args: { _property_id: string; _user_id: string }
         Returns: boolean

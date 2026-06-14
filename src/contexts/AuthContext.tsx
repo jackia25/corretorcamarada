@@ -30,11 +30,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchProfile = async (userId: string) => {
+  const fetchProfile = async (_userId: string) => {
+    // Use a security-definer RPC so the user always retrieves their OWN full
+    // profile (including the private phone number) without the phone column
+    // being readable on the profiles table by other authenticated brokers.
     const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
+      .rpc('get_my_profile')
       .maybeSingle();
 
     if (error) {
